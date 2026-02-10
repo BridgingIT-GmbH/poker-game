@@ -1,0 +1,81 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - asciicheck
+    - containedctx
+    - copyloopvar
+    - decorder
+    - dupl
+    - durationcheck
+    - embeddedstructfieldcheck
+    - err113
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goprintffuncname
+    - gosec
+    - govet
+    - iface
+    - importas
+    - inamedparam
+    - ineffassign
+    - intrange
+    - iotamixing
+    - ireturn
+    - lll
+    - loggercheck
+    - makezero
+    - mirror
+    - misspell
+    - mnd
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nosprintfhostport
+    - paralleltest
+    - prealloc
+    - recvcheck
+    - sloglint
+    - staticcheck
+    - tagalign
+    - testifylint
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl_v5
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'
