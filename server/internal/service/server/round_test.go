@@ -2,6 +2,8 @@ package server
 
 import (
 	"testing"
+
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 )
 
 func TestNewRound(t *testing.T) {
@@ -83,6 +85,60 @@ func TestConsumeToken(t *testing.T) {
 	// Unknown player → rejected.
 	if round.consumeToken("Bob", "anything") {
 		t.Error("consumeToken should return false for unknown player")
+	}
+}
+
+func TestConsumeActionToken(t *testing.T) {
+	t.Parallel()
+
+	round, _ := NewRound(1)
+	round.PlayerOrder = []string{"Alice", "Bob"}
+	round.PendingTokens["Alice"] = "alice-token"
+	round.PendingTokens["Bob"] = "bob-token"
+
+	// Nil table → rejected.
+	if round.consumeActionToken("Alice", "alice-token") {
+		t.Error("should return false when Table is nil")
+	}
+
+	// Set up table with Alice at CurrentToActPos=0.
+	round.Table = &model.Table{CurrentToActPos: 0}
+
+	// Bob has a valid token but it's Alice's turn → rejected.
+	if round.consumeActionToken("Bob", "bob-token") {
+		t.Error("should return false when it is not Bob's turn")
+	}
+
+	// Bob's token must not have been consumed.
+	if _, ok := round.PendingTokens["Bob"]; !ok {
+		t.Error("Bob's token should still be present after failed consumeActionToken")
+	}
+
+	// Alice with wrong token → rejected.
+	if round.consumeActionToken("Alice", "wrong") {
+		t.Error("should return false for wrong token")
+	}
+
+	// Alice with correct token and it's her turn → accepted.
+	if !round.consumeActionToken("Alice", "alice-token") {
+		t.Error("should return true when token and turn are both valid")
+	}
+
+	// Replay → rejected (token consumed).
+	if round.consumeActionToken("Alice", "alice-token") {
+		t.Error("should return false on replay")
+	}
+}
+
+func TestConsumeActionToken_EmptyPlayerOrder(t *testing.T) {
+	t.Parallel()
+
+	round, _ := NewRound(1)
+	round.Table = &model.Table{CurrentToActPos: 0}
+	round.PendingTokens["Alice"] = "tok"
+
+	if round.consumeActionToken("Alice", "tok") {
+		t.Error("should return false when PlayerOrder is empty")
 	}
 }
 

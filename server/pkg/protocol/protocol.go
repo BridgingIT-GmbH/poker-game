@@ -12,6 +12,10 @@ type CommandServer string
 const (
 	CmdRegister CommandPlayer = "REGISTER"
 	CmdJoin     CommandPlayer = "JOIN"
+	CmdFold     CommandPlayer = "FOLD"
+	CmdCheck    CommandPlayer = "CHECK"
+	CmdCall     CommandPlayer = "CALL"
+	CmdRaise    CommandPlayer = "RAISE"
 )
 
 const (
@@ -21,6 +25,8 @@ const (
 	CmdRoundStarted  CommandServer = "ROUND STARTED"
 	CmdCards         CommandServer = "CARDS"
 	CmdYourTurn      CommandServer = "YOUR TURN"
+	CmdBoard         CommandServer = "BOARD"
+	CmdScore         CommandServer = "SCORE"
 )
 
 var (
@@ -29,8 +35,9 @@ var (
 
 // ParseMessage splits a raw protocol message by ';'.
 // The minimal format is: CMD;ARG.
+// A trailing newline is stripped before parsing.
 func ParseMessage(data []byte) ([]string, error) {
-	message := string(data)
+	message := strings.TrimRight(string(data), "\n")
 	minParts := 2
 
 	parts := strings.Split(message, ";")

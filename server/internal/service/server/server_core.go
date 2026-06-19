@@ -17,6 +17,7 @@ import (
 const (
 	minPlayersToStart    = 2
 	joinTimeout          = 5 * time.Second
+	actionTimeout        = 30 * time.Second // TODO this is a high value for development. Reduce it in production.
 	eventsChanBufferSize = 128
 )
 
@@ -29,6 +30,12 @@ type inboundEvent struct {
 type joinTimeoutFired struct {
 	roundNumber int
 	roundID     string
+}
+
+type actionTimeoutFired struct {
+	roundNumber int
+	roundID     string
+	playerName  string
 }
 
 // serverCore contains the poker protocol/game logic.
@@ -44,7 +51,8 @@ type serverCore struct {
 	events   chan coreEvent
 	outbound chan<- transport.OutboundPackage
 
-	joinTimer *time.Timer
+	joinTimer   *time.Timer
+	actionTimer *time.Timer
 }
 
 func newServerCore(outbound chan<- transport.OutboundPackage) *serverCore {
@@ -64,6 +72,8 @@ func (c *serverCore) run() {
 			c.handlePackage(e.pkg)
 		case joinTimeoutFired:
 			c.onJoinTimeout(e)
+		case actionTimeoutFired:
+			c.onActionTimeout(e)
 		default:
 			slog.Warn("Unknown core event", "type", fmt.Sprintf("%T", ev))
 		}
@@ -98,6 +108,8 @@ func (c *serverCore) handleMessage(data []byte, peer transport.PeerID) {
 		c.registerPlayer(message[1], peer)
 	case protocol.CmdJoin:
 		c.handleJoin(message[1], peer)
+	case protocol.CmdFold, protocol.CmdCheck, protocol.CmdCall, protocol.CmdRaise:
+		c.handleAction(command, message[1], peer)
 	default:
 		c.sendToPeer(string(protocol.CmdRejected+";Unknown command\n"), peer)
 	}
@@ -107,4 +119,15 @@ func (c *serverCore) broadcastToPlayers(message string, players map[string]*Play
 	for _, player := range players {
 		c.sendToPeer(message, player.Peer)
 	}
+}
+
+// playerNameByPeer returns the registered name for a peer, or "" if unknown.
+func (c *serverCore) playerNameByPeer(peer transport.PeerID) string {
+	for name, p := range c.players {
+		if p.Peer == peer {
+			return name
+		}
+	}
+
+	return ""
 }

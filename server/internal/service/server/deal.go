@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"time"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
@@ -29,13 +30,14 @@ func (c *serverCore) dealCards() {
 
 	names, pgPlayers := buildOrderedPlayers(round)
 	table := buildTable(pgPlayers, round.RoundNumber)
+	collectBlinds(table)
 
 	c.shuffleAndDeal(table, names, round)
 
 	round.Table = table
 	round.PlayerOrder = names
 
-	c.promptFirstToAct(round)
+	c.promptCurrentToAct(round)
 }
 
 func buildOrderedPlayers(round *Round) ([]string, []*model.Player) {
@@ -82,18 +84,50 @@ func (c *serverCore) shuffleAndDeal(table *model.Table, names []string, round *R
 	}
 }
 
-func (c *serverCore) promptFirstToAct(round *Round) {
-	firstToActName := round.PlayerOrder[round.Table.CurrentToActPos]
-	firstToActPeer := round.JoinedPlayers[firstToActName].Peer
+func collectBlinds(table *model.Table) {
+	sb := table.Players[table.SmallBlindPos]
+	bb := table.Players[table.BigBlindPos]
+
+	sbPay := min(table.SmallBlindAmount, sb.Chips)
+	bbPay := min(table.BigBlindAmount, bb.Chips)
+
+	sb.Chips -= sbPay
+	sb.CurrentBet = sbPay
+	sb.TotalBetThisHand += sbPay
+
+	bb.Chips -= bbPay
+	bb.CurrentBet = bbPay
+	bb.TotalBetThisHand += bbPay
+
+	table.Pot = sbPay + bbPay
+	table.CurrentBet = bbPay
+}
+
+func (c *serverCore) promptCurrentToAct(round *Round) {
+	toActName := round.PlayerOrder[round.Table.CurrentToActPos]
+	toActPeer := round.JoinedPlayers[toActName].Peer
 
 	token, err := generateToken()
 	if err != nil {
-		slog.Error("Failed to generate YOUR TURN token", "player", firstToActName, "error", err)
+		slog.Error("Failed to generate YOUR TURN token", "player", toActName, "error", err)
 
 		return
 	}
 
-	round.PendingTokens[firstToActName] = token
+	round.PendingTokens[toActName] = token
 	msg := fmt.Sprintf("%s;%s\n", protocol.CmdYourTurn, token)
-	c.sendToPeer(msg, firstToActPeer)
+	c.sendToPeer(msg, toActPeer)
+
+	// Cancel the previous action timer and start a fresh one.
+	if c.actionTimer != nil {
+		c.actionTimer.Stop()
+	}
+
+	c.actionTimer = time.AfterFunc(actionTimeout, func() {
+		c.events <- actionTimeoutFired{
+			roundNumber: round.RoundNumber,
+			roundID:     round.roundID,
+			playerName:  toActName,
+		}
+	})
 }
