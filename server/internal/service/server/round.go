@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 )
 
 const (
@@ -23,6 +25,8 @@ type Round struct {
 	JoinedPlayers map[string]*Player
 	RoundNumber   int
 	State         RoundState
+	PlayerOrder   []string     // alphabetically sorted; fixed for the hand
+	Table         *model.Table // populated after cards are dealt
 }
 
 func NewRound(roundNumber int) (*Round, error) {

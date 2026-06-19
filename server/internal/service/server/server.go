@@ -7,6 +7,10 @@ import (
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
+// outboundChanBufferSize buffers broadcast bursts from the actor goroutine to
+// the UDP WriteLoop. A broadcast sends one packet per player, so the buffer
+// must absorb at least one full broadcast without blocking the actor.
+// 32 would suffice for typical table sizes; 128 gives comfortable headroom.
 const outboundChanBufferSize = 128
 
 // Server wires transport (UDP) and protocol/game logic (serverCore).

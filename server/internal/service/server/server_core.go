@@ -3,14 +3,17 @@ package server
 import (
 	"fmt"
 	"log/slog"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
+// eventsChanBufferSize is the mailbox capacity of the serverCore actor.
+// Producers are the UDP ReadLoop (inbound packets) and time.AfterFunc callbacks
+// (join timeout). A larger buffer prevents producers from blocking under burst
+// load while the actor is busy processing a previous event.
+// 0 or 1 would risk deadlock; 128 gives ample headroom for realistic traffic.
 const (
 	minPlayersToStart    = 2
 	joinTimeout          = 5 * time.Second
@@ -98,180 +101,6 @@ func (c *serverCore) handleMessage(data []byte, peer transport.PeerID) {
 	default:
 		c.sendToPeer(string(protocol.CmdRejected+";Unknown command\n"), peer)
 	}
-}
-
-func (c *serverCore) registerPlayer(name string, peer transport.PeerID) {
-	if len(name) < 1 {
-		slog.Warn("Player rejected because name is empty", "peer", string(peer))
-		c.sendToPeer(string(protocol.CmdRejected+";Name is empty\n"), peer)
-
-		return
-	}
-
-	if _, exists := c.players[name]; exists {
-		slog.Warn("Player rejected because name is already taken", "name", name, "peer", string(peer))
-		c.sendToPeer(string(protocol.CmdRejected+";Name already taken\n"), peer)
-
-		return
-	}
-
-	c.players[name] = &Player{Name: name, Peer: peer}
-	c.sendToPeer(string(protocol.CmdRegistered+"\n"), peer)
-
-	slog.Info("Player registered", "name", name, "peer", string(peer))
-	slog.Info(strconv.Itoa(len(c.players)) + " players currently registered")
-
-	if len(c.players) >= minPlayersToStart && c.roundState == RoundStateIdle {
-		c.tryStartRound()
-	}
-}
-
-func (c *serverCore) tryStartRound() {
-	if len(c.players) < minPlayersToStart {
-		slog.Info("Not enough players to start round")
-
-		return
-	}
-
-	if c.roundState != RoundStateIdle {
-		return
-	}
-
-	c.roundNumber++
-
-	round, err := NewRound(c.roundNumber)
-	if err != nil {
-		slog.Error("Failed to create round", "error", err)
-
-		return
-	}
-
-	c.currentRound = round
-	c.roundState = RoundStateWaitingForPlayers
-
-	message := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, round.Token)
-	c.broadcastToPlayers(message, c.players)
-	slog.Info("Round starting", "round", round.RoundNumber, "token", round.Token)
-
-	c.setJoinTimeout(round)
-}
-
-func (c *serverCore) setJoinTimeout(round *Round) {
-	if c.joinTimer != nil {
-		c.joinTimer.Stop()
-		c.joinTimer = nil
-	}
-
-	c.joinTimer = time.AfterFunc(joinTimeout, func() {
-		// Callback runs in its own goroutine; post back into the actor.
-		c.events <- joinTimeoutFired{roundNumber: round.RoundNumber, token: round.Token}
-	})
-}
-
-func (c *serverCore) onJoinTimeout(e joinTimeoutFired) {
-	if c.currentRound == nil {
-		return
-	}
-
-	if c.roundState != RoundStateWaitingForPlayers {
-		return
-	}
-
-	if c.currentRound.RoundNumber != e.roundNumber || c.currentRound.Token != e.token {
-		return
-	}
-
-	if len(c.currentRound.JoinedPlayers) < minPlayersToStart {
-		slog.Warn("Not enough players joined, aborting round", "joined", len(c.currentRound.JoinedPlayers))
-		c.roundState = RoundStateIdle
-		c.currentRound = nil
-		c.joinTimer = nil
-
-		c.tryStartRound()
-
-		return
-	}
-
-	c.startRound()
-}
-
-func (c *serverCore) startRound() {
-	if c.currentRound == nil {
-		return
-	}
-
-	playerNames := make([]string, 0, len(c.currentRound.JoinedPlayers))
-	for name := range c.currentRound.JoinedPlayers {
-		playerNames = append(playerNames, name)
-	}
-
-	message := fmt.Sprintf(
-		"%s;%d;%s\n",
-		protocol.CmdRoundStarted,
-		c.currentRound.RoundNumber,
-		strings.Join(playerNames, ","),
-	)
-
-	c.broadcastToPlayers(message, c.currentRound.JoinedPlayers)
-	slog.Info("Round started", "round", c.currentRound.RoundNumber, "players", playerNames)
-
-	c.roundState = RoundStateInProgress
-	c.joinTimer = nil
-}
-
-func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
-	expectedToken := ""
-	if c.currentRound != nil {
-		expectedToken = c.currentRound.Token
-	}
-
-	if c.currentRound == nil || c.currentRound.Token != token {
-		c.sendToPeer(string(protocol.CmdRejected+";Invalid token\n"), peer)
-		slog.Warn(
-			"Player tried to join with invalid token",
-			"peer",
-			string(peer),
-			"token",
-			token,
-			"expectedToken",
-			expectedToken,
-		)
-
-		return
-	}
-
-	if c.roundState != RoundStateWaitingForPlayers {
-		c.sendToPeer(string(protocol.CmdRejected+";Round not accepting players\n"), peer)
-		slog.Warn("Player tried to join but round not accepting", "peer", string(peer))
-
-		return
-	}
-
-	var playerName string
-
-	for name, player := range c.players {
-		if player.Peer == peer {
-			playerName = name
-
-			break
-		}
-	}
-
-	if playerName == "" {
-		c.sendToPeer(string(protocol.CmdRejected+";Player not registered\n"), peer)
-		slog.Warn("Unregistered player tried to join", "peer", string(peer))
-
-		return
-	}
-
-	if _, exists := c.currentRound.JoinedPlayers[playerName]; exists {
-		slog.Info("Player already joined", "name", playerName)
-
-		return
-	}
-
-	c.currentRound.JoinedPlayers[playerName] = c.players[playerName]
-	slog.Info("Player joined round", "name", playerName, "round", c.currentRound.RoundNumber)
 }
 
 func (c *serverCore) broadcastToPlayers(message string, players map[string]*Player) {

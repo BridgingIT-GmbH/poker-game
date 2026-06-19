@@ -19,6 +19,8 @@ const (
 	CmdRejected      CommandServer = "REJECTED"
 	CmdRoundStarting CommandServer = "ROUND STARTING"
 	CmdRoundStarted  CommandServer = "ROUND STARTED"
+	CmdCards         CommandServer = "CARDS"
+	CmdYourTurn      CommandServer = "YOUR TURN"
 )
 
 var (
