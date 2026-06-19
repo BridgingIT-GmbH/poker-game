@@ -8,22 +8,8 @@ import (
 )
 
 func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
-	expectedToken := ""
-	if c.currentRound != nil {
-		expectedToken = c.currentRound.Token
-	}
-
-	if c.currentRound == nil || c.currentRound.Token != token {
-		c.sendToPeer(string(protocol.CmdRejected+";Invalid token\n"), peer)
-		slog.Warn(
-			"Player tried to join with invalid token",
-			"peer",
-			string(peer),
-			"token",
-			token,
-			"expectedToken",
-			expectedToken,
-		)
+	if c.currentRound == nil {
+		c.sendToPeer(string(protocol.CmdRejected+";No active round\n"), peer)
 
 		return
 	}
@@ -48,6 +34,20 @@ func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
 	if playerName == "" {
 		c.sendToPeer(string(protocol.CmdRejected+";Player not registered\n"), peer)
 		slog.Warn("Unregistered player tried to join", "peer", string(peer))
+
+		return
+	}
+
+	expectedToken, hasPending := c.currentRound.PendingTokens[playerName]
+	if !hasPending || expectedToken != token {
+		c.sendToPeer(string(protocol.CmdRejected+";Invalid token\n"), peer)
+		slog.Warn(
+			"Player tried to join with invalid token",
+			"peer", string(peer),
+			"player", playerName,
+			"token", token,
+			"expectedToken", expectedToken,
+		)
 
 		return
 	}

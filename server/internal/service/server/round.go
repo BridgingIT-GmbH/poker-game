@@ -21,25 +21,27 @@ const (
 )
 
 type Round struct {
-	Token         string
+	roundID       string // internal identifier; used only for join-timeout staleness checks
 	JoinedPlayers map[string]*Player
 	RoundNumber   int
 	State         RoundState
-	PlayerOrder   []string     // alphabetically sorted; fixed for the hand
-	Table         *model.Table // populated after cards are dealt
+	PlayerOrder   []string          // randomly ordered; fixed for the hand
+	Table         *model.Table      // populated after cards are dealt
+	PendingTokens map[string]string // playerName → token the server expects in the response
 }
 
 func NewRound(roundNumber int) (*Round, error) {
-	token, err := generateToken()
+	id, err := generateToken()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Round{
-		Token:         token,
+		roundID:       id,
 		JoinedPlayers: make(map[string]*Player),
 		RoundNumber:   roundNumber,
 		State:         RoundStateWaitingForPlayers,
+		PendingTokens: make(map[string]string),
 	}, nil
 }
 

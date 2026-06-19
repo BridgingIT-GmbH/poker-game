@@ -28,7 +28,7 @@ type inboundEvent struct {
 
 type joinTimeoutFired struct {
 	roundNumber int
-	token       string
+	roundID     string
 }
 
 // serverCore contains the poker protocol/game logic.

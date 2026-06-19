@@ -22,12 +22,20 @@ func TestNewRound(t *testing.T) {
 		t.Errorf("Expected round number %d, got %d", roundNumber, round.RoundNumber)
 	}
 
-	if round.Token == "" {
-		t.Error("NewRound() token is empty")
+	if round.roundID == "" {
+		t.Error("NewRound() roundID is empty")
 	}
 
-	if len(round.Token) != 32 {
-		t.Errorf("Expected token length 32, got %d", len(round.Token))
+	if len(round.roundID) != 32 {
+		t.Errorf("Expected roundID length 32, got %d", len(round.roundID))
+	}
+
+	if round.PendingTokens == nil {
+		t.Error("NewRound() PendingTokens not initialized")
+	}
+
+	if len(round.PendingTokens) != 0 {
+		t.Errorf("Expected empty PendingTokens, got %d", len(round.PendingTokens))
 	}
 
 	if round.JoinedPlayers == nil {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -226,18 +225,39 @@ func TestDealCards_YourTurnContainsToken(t *testing.T) {
 
 	pkgs := drainOutbound(t, outbound)
 
-	expectedYourTurn := fmt.Sprintf("%s;%s\n", protocol.CmdYourTurn, round.Token)
-	found := false
+	// Find the YOUR TURN message and identify who received it.
+	var yourTurnPeer transport.PeerID
+
+	var yourTurnToken string
 
 	for _, pkg := range pkgs {
-		if string(pkg.Data) == expectedYourTurn {
-			found = true
-
-			break
+		data := string(pkg.Data)
+		if strings.HasPrefix(data, string(protocol.CmdYourTurn)+";") {
+			yourTurnPeer = pkg.Peer
+			yourTurnToken = strings.TrimSuffix(strings.TrimPrefix(data, string(protocol.CmdYourTurn)+";"), "\n")
 		}
 	}
 
-	if !found {
-		t.Fatalf("expected YOUR TURN message %q not found in outbound packages", expectedYourTurn)
+	if yourTurnPeer == "" {
+		t.Fatal("no YOUR TURN message found in outbound packages")
+	}
+
+	// Find the player name for that peer.
+	var actingPlayer string
+
+	for name, player := range round.JoinedPlayers {
+		if player.Peer == yourTurnPeer {
+			actingPlayer = name
+		}
+	}
+
+	// The stored pending token must match the token sent in the message.
+	expectedToken, ok := round.PendingTokens[actingPlayer]
+	if !ok {
+		t.Fatalf("no pending token stored for acting player %q", actingPlayer)
+	}
+
+	if yourTurnToken != expectedToken {
+		t.Fatalf("YOUR TURN token %q does not match PendingTokens[%q] = %q", yourTurnToken, actingPlayer, expectedToken)
 	}
 }

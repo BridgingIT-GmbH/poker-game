@@ -17,10 +17,11 @@ func TestHandleJoin(t *testing.T) {
 	core.players["TestPlayer"] = &Player{Name: "TestPlayer", Peer: peer}
 
 	round, _ := NewRound(1)
+	round.PendingTokens["TestPlayer"] = "valid-token"
 	core.currentRound = round
 	core.roundState = RoundStateWaitingForPlayers
 
-	core.handleJoin(round.Token, peer)
+	core.handleJoin("valid-token", peer)
 
 	_, joined := core.currentRound.JoinedPlayers["TestPlayer"]
 	if !joined {
@@ -38,6 +39,7 @@ func TestHandleJoinInvalidToken(t *testing.T) {
 	core.players["TestPlayer"] = &Player{Name: "TestPlayer", Peer: peer}
 
 	round, _ := NewRound(1)
+	round.PendingTokens["TestPlayer"] = "correct-token"
 	core.currentRound = round
 	core.roundState = RoundStateWaitingForPlayers
 
@@ -59,7 +61,7 @@ func TestHandleJoinNotRegistered(t *testing.T) {
 	core.currentRound = round
 	core.roundState = RoundStateWaitingForPlayers
 
-	core.handleJoin(round.Token, peer)
+	core.handleJoin("any-token", peer)
 
 	pkg := readOutbound(t, outbound)
 	assertOutbound(t, pkg, peer, string(protocol.CmdRejected+";Player not registered\n"))

@@ -32,9 +32,20 @@ func (c *serverCore) tryStartRound() {
 	c.currentRound = round
 	c.roundState = RoundStateWaitingForPlayers
 
-	message := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, round.Token)
-	c.broadcastToPlayers(message, c.players)
-	slog.Info("Round starting", "round", round.RoundNumber, "token", round.Token)
+	for name, player := range c.players {
+		token, err := generateToken()
+		if err != nil {
+			slog.Error("Failed to generate join token", "player", name, "error", err)
+
+			return
+		}
+
+		round.PendingTokens[name] = token
+		message := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, token)
+		c.sendToPeer(message, player.Peer)
+	}
+
+	slog.Info("Round starting", "round", round.RoundNumber)
 
 	c.setJoinTimeout(round)
 }
@@ -47,7 +58,7 @@ func (c *serverCore) setJoinTimeout(round *Round) {
 
 	c.joinTimer = time.AfterFunc(joinTimeout, func() {
 		// Callback runs in its own goroutine; post back into the actor.
-		c.events <- joinTimeoutFired{roundNumber: round.RoundNumber, token: round.Token}
+		c.events <- joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID}
 	})
 }
 
@@ -60,7 +71,7 @@ func (c *serverCore) onJoinTimeout(e joinTimeoutFired) {
 		return
 	}
 
-	if c.currentRound.RoundNumber != e.roundNumber || c.currentRound.Token != e.token {
+	if c.currentRound.RoundNumber != e.roundNumber || c.currentRound.roundID != e.roundID {
 		return
 	}
 

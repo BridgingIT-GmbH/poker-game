@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"math/rand"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
@@ -84,6 +85,15 @@ func (c *serverCore) shuffleAndDeal(table *model.Table, names []string, round *R
 func (c *serverCore) promptFirstToAct(round *Round) {
 	firstToActName := round.PlayerOrder[round.Table.CurrentToActPos]
 	firstToActPeer := round.JoinedPlayers[firstToActName].Peer
-	msg := fmt.Sprintf("%s;%s\n", protocol.CmdYourTurn, round.Token)
+
+	token, err := generateToken()
+	if err != nil {
+		slog.Error("Failed to generate YOUR TURN token", "player", firstToActName, "error", err)
+
+		return
+	}
+
+	round.PendingTokens[firstToActName] = token
+	msg := fmt.Sprintf("%s;%s\n", protocol.CmdYourTurn, token)
 	c.sendToPeer(msg, firstToActPeer)
 }

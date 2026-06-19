@@ -83,9 +83,7 @@ func TestTryStartRound_Success(t *testing.T) {
 		t.Fatal("expected join timer to be set")
 	}
 
-	// Both players must receive a ROUND STARTING broadcast.
-	expectedMsg := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, core.currentRound.Token)
-
+	// Both players must receive a ROUND STARTING message with their individual token.
 	got := map[transport.PeerID]string{}
 
 	for range core.players {
@@ -93,12 +91,31 @@ func TestTryStartRound_Success(t *testing.T) {
 		got[pkg.Peer] = string(pkg.Data)
 	}
 
-	if got[peerAlice] != expectedMsg {
-		t.Fatalf("Alice: expected %q, got %q", expectedMsg, got[peerAlice])
+	// Verify Alice's message matches her pending token.
+	aliceToken, ok := core.currentRound.PendingTokens["Alice"]
+	if !ok {
+		t.Fatal("no pending token for Alice")
 	}
 
-	if got[peerBob] != expectedMsg {
-		t.Fatalf("Bob: expected %q, got %q", expectedMsg, got[peerBob])
+	expectedAlice := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, aliceToken)
+	if got[peerAlice] != expectedAlice {
+		t.Fatalf("Alice: expected %q, got %q", expectedAlice, got[peerAlice])
+	}
+
+	// Verify Bob's message matches his pending token.
+	bobToken, ok := core.currentRound.PendingTokens["Bob"]
+	if !ok {
+		t.Fatal("no pending token for Bob")
+	}
+
+	expectedBob := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, bobToken)
+	if got[peerBob] != expectedBob {
+		t.Fatalf("Bob: expected %q, got %q", expectedBob, got[peerBob])
+	}
+
+	// Tokens must be different.
+	if aliceToken == bobToken {
+		t.Fatal("expected unique tokens for each player, got identical tokens")
 	}
 
 	// Stop the timer so it doesn't interfere with other tests.
@@ -116,7 +133,7 @@ func TestOnJoinTimeout_StaleRoundNumber(t *testing.T) {
 	core.roundState = RoundStateWaitingForPlayers
 
 	// Fire event with a different round number – must be ignored.
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: 99, token: round.Token})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: 99, roundID: round.roundID})
 
 	if core.roundState != RoundStateWaitingForPlayers {
 		t.Fatalf("state should be unchanged, got %v", core.roundState)
@@ -137,8 +154,8 @@ func TestOnJoinTimeout_StaleToken(t *testing.T) {
 	core.currentRound = round
 	core.roundState = RoundStateWaitingForPlayers
 
-	// Fire event with a wrong token – must be ignored.
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, token: "wrong-token"})
+	// Fire event with a wrong roundID – must be ignored.
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: "wrong-id"})
 
 	if core.roundState != RoundStateWaitingForPlayers {
 		t.Fatalf("state should be unchanged, got %v", core.roundState)
@@ -163,7 +180,7 @@ func TestOnJoinTimeout_NotEnoughPlayersJoined(t *testing.T) {
 	core.roundState = RoundStateWaitingForPlayers
 	// Zero players joined – below minPlayersToStart.
 
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, token: round.Token})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID})
 
 	if core.currentRound != nil {
 		t.Fatal("round should have been aborted")
@@ -233,7 +250,7 @@ func TestOnJoinTimeout_EnoughPlayersJoined(t *testing.T) {
 	core.currentRound = round
 	core.roundState = RoundStateWaitingForPlayers
 
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, token: round.Token})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID})
 
 	if core.roundState != RoundStateInProgress {
 		t.Fatalf("expected state InProgress, got %v", core.roundState)
