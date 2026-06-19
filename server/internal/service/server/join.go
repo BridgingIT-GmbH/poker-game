@@ -38,15 +38,12 @@ func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
 		return
 	}
 
-	expectedToken, hasPending := c.currentRound.PendingTokens[playerName]
-	if !hasPending || expectedToken != token {
+	if !c.currentRound.consumeToken(playerName, token) {
 		c.sendToPeer(string(protocol.CmdRejected+";Invalid token\n"), peer)
 		slog.Warn(
 			"Player tried to join with invalid token",
 			"peer", string(peer),
 			"player", playerName,
-			"token", token,
-			"expectedToken", expectedToken,
 		)
 
 		return

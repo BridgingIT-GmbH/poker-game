@@ -55,3 +55,16 @@ func generateToken() (string, error) {
 
 	return hex.EncodeToString(tokenBytes), nil
 }
+
+// consumeToken checks whether token matches the pending token for playerName.
+// On success it removes the token from PendingTokens so it cannot be reused.
+func (r *Round) consumeToken(playerName, token string) bool {
+	expected, ok := r.PendingTokens[playerName]
+	if !ok || expected != token {
+		return false
+	}
+
+	delete(r.PendingTokens, playerName)
+
+	return true
+}

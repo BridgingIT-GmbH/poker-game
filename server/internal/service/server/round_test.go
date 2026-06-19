@@ -51,6 +51,41 @@ func TestNewRound(t *testing.T) {
 	}
 }
 
+func TestConsumeToken(t *testing.T) {
+	t.Parallel()
+
+	round, _ := NewRound(1)
+	round.PendingTokens["Alice"] = "abc123"
+
+	// Wrong token → rejected, token stays.
+	if round.consumeToken("Alice", "wrong") {
+		t.Error("consumeToken should return false for wrong token")
+	}
+
+	if _, still := round.PendingTokens["Alice"]; !still {
+		t.Error("token should not be deleted after failed validation")
+	}
+
+	// Correct token → accepted, token removed.
+	if !round.consumeToken("Alice", "abc123") {
+		t.Error("consumeToken should return true for correct token")
+	}
+
+	if _, exists := round.PendingTokens["Alice"]; exists {
+		t.Error("token should be deleted after successful consumption")
+	}
+
+	// Replay → rejected.
+	if round.consumeToken("Alice", "abc123") {
+		t.Error("consumeToken should return false on replay (token already consumed)")
+	}
+
+	// Unknown player → rejected.
+	if round.consumeToken("Bob", "anything") {
+		t.Error("consumeToken should return false for unknown player")
+	}
+}
+
 func TestGenerateToken(t *testing.T) {
 	t.Parallel()
 
