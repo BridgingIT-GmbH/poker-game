@@ -4,16 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
-// twoPlayerDealMessages is the number of outbound messages produced by
-// dealCards() for a two-player round: 2× CARDS + 1× YOUR TURN.
 const twoPlayerDealMessages = 3
 
-// drainOutbound reads twoPlayerDealMessages packages from the channel,
-// failing on timeout.
 func drainOutbound(t *testing.T, outbound <-chan transport.OutboundPackage) []transport.OutboundPackage {
 	t.Helper()
 
@@ -25,12 +23,41 @@ func drainOutbound(t *testing.T, outbound <-chan transport.OutboundPackage) []tr
 	return pkgs
 }
 
+const (
+	testPeerAlice = transport.PeerID("peer-alice")
+	testPeerBob   = transport.PeerID("peer-bob")
+)
+
+// setupDealTest creates a core and round ready for dealCards() with two players.
+func setupDealTest(
+	t *testing.T,
+	roundNumber int,
+) (*serverCore, *game.Round, chan transport.OutboundPackage) {
+	t.Helper()
+
+	outbound := make(chan transport.OutboundPackage, 16)
+	core := newServerCore(outbound)
+
+	core.players["Alice"] = &Player{Name: "Alice", Peer: testPeerAlice}
+	core.players["Bob"] = &Player{Name: "Bob", Peer: testPeerBob}
+
+	round := game.NewRound(roundNumber)
+	session, _ := NewRoundSession()
+	round.JoinedPlayers["Alice"] = &model.Player{Name: "Alice"}
+	round.JoinedPlayers["Bob"] = &model.Player{Name: "Bob"}
+
+	core.currentRound = round
+	core.currentSession = session
+	core.roundState = RoundStateInProgress
+
+	return core, round, outbound
+}
+
 func TestDealCards_NilRound(t *testing.T) {
 	t.Parallel()
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	// currentRound is nil – must not panic.
 	core.dealCards()
 
 	if len(outbound) != 0 {
@@ -41,21 +68,10 @@ func TestDealCards_NilRound(t *testing.T) {
 func TestDealCards_EachPlayerReceivesCards(t *testing.T) {
 	t.Parallel()
 
-	outbound := make(chan transport.OutboundPackage, 16)
-	core := newServerCore(outbound)
-
-	peerAlice := transport.PeerID("peer-alice")
-	peerBob := transport.PeerID("peer-bob")
-
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: peerAlice}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: peerBob}
-	core.currentRound = round
-	core.roundState = RoundStateInProgress
+	core, _, outbound := setupDealTest(t, 1)
 
 	core.dealCards()
 
-	// Expect: 2× CARDS + 1× YOUR TURN  (3 messages total)
 	pkgs := drainOutbound(t, outbound)
 
 	cardsReceived := map[transport.PeerID]string{}
@@ -73,16 +89,14 @@ func TestDealCards_EachPlayerReceivesCards(t *testing.T) {
 		}
 	}
 
-	// Both players must have received a CARDS message.
-	if _, ok := cardsReceived[peerAlice]; !ok {
+	if _, ok := cardsReceived[testPeerAlice]; !ok {
 		t.Error("Alice did not receive a CARDS message")
 	}
 
-	if _, ok := cardsReceived[peerBob]; !ok {
+	if _, ok := cardsReceived[testPeerBob]; !ok {
 		t.Error("Bob did not receive a CARDS message")
 	}
 
-	// Exactly one YOUR TURN must have been sent.
 	if len(yourTurnReceived) != 1 {
 		t.Fatalf("expected exactly 1 YOUR TURN message, got %d", len(yourTurnReceived))
 	}
@@ -91,14 +105,7 @@ func TestDealCards_EachPlayerReceivesCards(t *testing.T) {
 func TestDealCards_CardsFormat(t *testing.T) {
 	t.Parallel()
 
-	outbound := make(chan transport.OutboundPackage, 16)
-	core := newServerCore(outbound)
-
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
-	core.currentRound = round
-
+	core, _, outbound := setupDealTest(t, 1)
 	core.dealCards()
 
 	pkgs := drainOutbound(t, outbound)
@@ -108,10 +115,10 @@ func TestDealCards_CardsFormat(t *testing.T) {
 		if !strings.HasPrefix(data, string(protocol.CmdCards)+";") {
 			continue
 		}
-		// Format: "CARDS;Xs,Yh\n"  – two comma-separated cards, one newline.
-		trimmed := strings.TrimSuffix(data, "\n")
 
+		trimmed := strings.TrimSuffix(data, "\n")
 		parts := strings.SplitN(trimmed, ";", 2)
+
 		if len(parts) != 2 {
 			t.Fatalf("malformed CARDS message: %q", data)
 		}
@@ -132,14 +139,7 @@ func TestDealCards_CardsFormat(t *testing.T) {
 func TestDealCards_UniqueCards(t *testing.T) {
 	t.Parallel()
 
-	outbound := make(chan transport.OutboundPackage, 16)
-	core := newServerCore(outbound)
-
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
-	core.currentRound = round
-
+	core, _, outbound := setupDealTest(t, 1)
 	core.dealCards()
 
 	pkgs := drainOutbound(t, outbound)
@@ -153,8 +153,8 @@ func TestDealCards_UniqueCards(t *testing.T) {
 		}
 
 		trimmed := strings.TrimSuffix(data, "\n")
-
 		parts := strings.SplitN(trimmed, ";", 2)
+
 		for _, card := range strings.Split(parts[1], ",") {
 			if seen[card] {
 				t.Fatalf("card %q dealt more than once", card)
@@ -168,16 +168,8 @@ func TestDealCards_UniqueCards(t *testing.T) {
 func TestDealCards_TablePopulated(t *testing.T) {
 	t.Parallel()
 
-	outbound := make(chan transport.OutboundPackage, 16)
-	core := newServerCore(outbound)
-
-	round, _ := NewRound(2) // round 2 → dealer rotates to seat 1
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
-	core.currentRound = round
-
+	core, round, outbound := setupDealTest(t, 2)
 	core.dealCards()
-
 	drainOutbound(t, outbound)
 
 	if round.Table == nil {
@@ -188,7 +180,6 @@ func TestDealCards_TablePopulated(t *testing.T) {
 		t.Fatalf("expected PlayerOrder length 2, got %d", len(round.PlayerOrder))
 	}
 
-	// PlayerOrder must contain both players (order is random).
 	orderSet := map[string]bool{}
 	for _, name := range round.PlayerOrder {
 		orderSet[name] = true
@@ -198,12 +189,10 @@ func TestDealCards_TablePopulated(t *testing.T) {
 		t.Fatalf("PlayerOrder missing a player: %v", round.PlayerOrder)
 	}
 
-	// Dealer position for round 2 with 2 players: (2-1) % 2 = 1 → Bob.
 	if round.Table.DealerPosition != 1 {
 		t.Fatalf("expected DealerPosition 1, got %d", round.Table.DealerPosition)
 	}
 
-	// Remaining deck must have 52 - 4 dealt cards = 48 cards.
 	const expectedRemaining = 48
 	if len(round.Table.Deck.Cards) != expectedRemaining {
 		t.Fatalf("expected %d remaining cards, got %d", expectedRemaining, len(round.Table.Deck.Cards))
@@ -213,19 +202,11 @@ func TestDealCards_TablePopulated(t *testing.T) {
 func TestDealCards_YourTurnContainsToken(t *testing.T) {
 	t.Parallel()
 
-	outbound := make(chan transport.OutboundPackage, 16)
-	core := newServerCore(outbound)
-
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
-	core.currentRound = round
-
+	core, round, outbound := setupDealTest(t, 1)
 	core.dealCards()
 
 	pkgs := drainOutbound(t, outbound)
 
-	// Find the YOUR TURN message and identify who received it.
 	var yourTurnPeer transport.PeerID
 
 	var yourTurnToken string
@@ -242,22 +223,25 @@ func TestDealCards_YourTurnContainsToken(t *testing.T) {
 		t.Fatal("no YOUR TURN message found in outbound packages")
 	}
 
-	// Find the player name for that peer.
+	// Find the player name for that peer via core.players.
 	var actingPlayer string
 
-	for name, player := range round.JoinedPlayers {
-		if player.Peer == yourTurnPeer {
+	for name, p := range core.players {
+		if p.Peer == yourTurnPeer {
 			actingPlayer = name
 		}
 	}
 
-	// The stored pending token must match the token sent in the message.
-	expectedToken, ok := round.PendingTokens[actingPlayer]
+	// The stored pending token in the session must match the token sent.
+	expectedToken, ok := core.currentSession.PendingTokens[actingPlayer]
 	if !ok {
 		t.Fatalf("no pending token stored for acting player %q", actingPlayer)
 	}
 
 	if yourTurnToken != expectedToken {
-		t.Fatalf("YOUR TURN token %q does not match PendingTokens[%q] = %q", yourTurnToken, actingPlayer, expectedToken)
+		t.Fatalf("YOUR TURN token %q does not match PendingTokens[%q] = %q",
+			yourTurnToken, actingPlayer, expectedToken)
 	}
+
+	_ = round
 }

@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
 // handleAction is the entry point for FOLD/CHECK/CALL/RAISE commands.
-// It validates the token, applies the action to the game model, broadcasts
-// the result to all players and advances the turn.
+// It validates the token via RoundSession, delegates the game logic to the
+// game package and broadcasts the result to all players in the round.
 func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer transport.PeerID) {
 	round := c.currentRound
 	if round == nil || c.roundState != RoundStateInProgress {
@@ -26,8 +27,7 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 		return
 	}
 
-	// consumeActionToken validates the token AND that it is this player's turn.
-	if !round.consumeActionToken(playerName, token) {
+	if !c.currentSession.ConsumeActionToken(playerName, token, round) {
 		c.sendToPeer(string(protocol.CmdRejected+";Invalid token or not your turn\n"), peer)
 		slog.Warn("Action rejected: invalid token or wrong turn", "player", playerName, "cmd", cmd)
 
@@ -40,7 +40,9 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 		c.actionTimer = nil
 	}
 
-	broadcastCmd := applyPlayerAction(cmd, round, playerName)
+	result := game.ApplyPlayerAction(game.Action(string(cmd)), round, playerName)
+	broadcastCmd := protocol.CommandPlayer(string(result))
+
 	c.broadcastToPlayers(fmt.Sprintf("%s;%s\n", broadcastCmd, playerName), round.JoinedPlayers)
 	slog.Info("Player action", "player", playerName, "action", broadcastCmd, "pot", round.Table.Pot)
 
@@ -48,13 +50,13 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 }
 
 // onActionTimeout is called when a player fails to respond within actionTimeout.
-// The player is automatically folded.
+// The player is automatically folded via the game package.
 func (c *serverCore) onActionTimeout(e actionTimeoutFired) {
-	if c.currentRound == nil {
+	if c.currentRound == nil || c.currentSession == nil {
 		return
 	}
 
-	if c.currentRound.RoundNumber != e.roundNumber || c.currentRound.roundID != e.roundID {
+	if c.currentRound.RoundNumber != e.roundNumber || c.currentSession.RoundID() != e.roundID {
 		return // stale event from a previous round
 	}
 
@@ -71,10 +73,10 @@ func (c *serverCore) onActionTimeout(e actionTimeoutFired) {
 	slog.Warn("Action timeout, auto-folding player", "player", e.playerName)
 
 	// Remove the pending token so the player can't act after the fold.
-	delete(c.currentRound.PendingTokens, e.playerName)
+	delete(c.currentSession.PendingTokens, e.playerName)
 
 	table := c.currentRound.Table
-	applyFold(table, table.Players[table.CurrentToActPos])
+	game.ApplyFold(table, table.Players[table.CurrentToActPos])
 
 	c.broadcastToPlayers(
 		fmt.Sprintf("%s;%s\n", protocol.CmdFold, e.playerName),

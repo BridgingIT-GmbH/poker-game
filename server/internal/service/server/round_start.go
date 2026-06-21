@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 )
 
@@ -22,14 +23,17 @@ func (c *serverCore) tryStartRound() {
 
 	c.roundNumber++
 
-	round, err := NewRound(c.roundNumber)
+	round := game.NewRound(c.roundNumber)
+
+	session, err := NewRoundSession()
 	if err != nil {
-		slog.Error("Failed to create round", "error", err)
+		slog.Error("Failed to create round session", "error", err)
 
 		return
 	}
 
 	c.currentRound = round
+	c.currentSession = session
 	c.roundState = RoundStateWaitingForPlayers
 
 	for name, player := range c.players {
@@ -40,17 +44,17 @@ func (c *serverCore) tryStartRound() {
 			return
 		}
 
-		round.PendingTokens[name] = token
+		session.PendingTokens[name] = token
 		message := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, token)
 		c.sendToPeer(message, player.Peer)
 	}
 
 	slog.Info("Round starting", "round", round.RoundNumber)
 
-	c.setJoinTimeout(round)
+	c.setJoinTimeout(round, session)
 }
 
-func (c *serverCore) setJoinTimeout(round *Round) {
+func (c *serverCore) setJoinTimeout(round *game.Round, session *RoundSession) {
 	if c.joinTimer != nil {
 		c.joinTimer.Stop()
 		c.joinTimer = nil
@@ -58,12 +62,12 @@ func (c *serverCore) setJoinTimeout(round *Round) {
 
 	c.joinTimer = time.AfterFunc(joinTimeout, func() {
 		// Callback runs in its own goroutine; post back into the actor.
-		c.events <- joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID}
+		c.events <- joinTimeoutFired{roundNumber: round.RoundNumber, roundID: session.RoundID()}
 	})
 }
 
 func (c *serverCore) onJoinTimeout(e joinTimeoutFired) {
-	if c.currentRound == nil {
+	if c.currentRound == nil || c.currentSession == nil {
 		return
 	}
 
@@ -71,7 +75,7 @@ func (c *serverCore) onJoinTimeout(e joinTimeoutFired) {
 		return
 	}
 
-	if c.currentRound.RoundNumber != e.roundNumber || c.currentRound.roundID != e.roundID {
+	if c.currentRound.RoundNumber != e.roundNumber || c.currentSession.RoundID() != e.roundID {
 		return
 	}
 
@@ -79,6 +83,7 @@ func (c *serverCore) onJoinTimeout(e joinTimeoutFired) {
 		slog.Warn("Not enough players joined, aborting round", "joined", len(c.currentRound.JoinedPlayers))
 		c.roundState = RoundStateIdle
 		c.currentRound = nil
+		c.currentSession = nil
 		c.joinTimer = nil
 
 		c.tryStartRound()

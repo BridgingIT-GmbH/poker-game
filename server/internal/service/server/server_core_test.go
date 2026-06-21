@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -68,18 +69,21 @@ func TestBroadcastToPlayers(t *testing.T) {
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
 
-	players := map[string]*Player{
-		"Player1": {Name: "Player1", Peer: "peer-1"},
-		"Player2": {Name: "Player2", Peer: "peer-2"},
+	// broadcastToPlayers looks up peers from core.players using the keys of joinedPlayers.
+	core.players["Player1"] = &Player{Name: "Player1", Peer: "peer-1"}
+	core.players["Player2"] = &Player{Name: "Player2", Peer: "peer-2"}
+
+	joinedPlayers := map[string]*model.Player{
+		"Player1": {Name: "Player1"},
+		"Player2": {Name: "Player2"},
 	}
 
 	msg := "BROADCAST_TEST\n"
-	core.broadcastToPlayers(msg, players)
+	core.broadcastToPlayers(msg, joinedPlayers)
 
 	pkg1 := readOutbound(t, outbound)
 	pkg2 := readOutbound(t, outbound)
 
-	// order is not guaranteed
 	got := map[transport.PeerID]string{pkg1.Peer: string(pkg1.Data), pkg2.Peer: string(pkg2.Data)}
 	if got["peer-1"] != msg {
 		t.Fatalf("peer-1: expected %q, got %q", msg, got["peer-1"])

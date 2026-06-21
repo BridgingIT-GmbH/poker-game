@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 )
 
@@ -13,7 +14,7 @@ func TestHandleLastPlayerStanding_ScoreFormat(t *testing.T) {
 	core, round, outbound := twoPlayerRoundInProgress(t)
 	round.Table.Pot = 300
 
-	applyFold(round.Table, round.Table.Players[0]) // Alice folds → Bob wins
+	game.ApplyFold(round.Table, round.Table.Players[0]) // Alice folds → Bob wins
 
 	core.handleLastPlayerStanding(round)
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -14,7 +15,7 @@ import (
 // twoPlayerRoundInProgress sets up a serverCore with two players whose cards
 // have already been dealt and whose YOUR TURN token has been issued to Alice
 // (seat 0). Bob sits at seat 1.
-func twoPlayerRoundInProgress(t *testing.T) (*serverCore, *Round, chan transport.OutboundPackage) {
+func twoPlayerRoundInProgress(t *testing.T) (*serverCore, *game.Round, chan transport.OutboundPackage) {
 	t.Helper()
 
 	outbound := make(chan transport.OutboundPackage, 32)
@@ -23,9 +24,8 @@ func twoPlayerRoundInProgress(t *testing.T) (*serverCore, *Round, chan transport
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
 
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = core.players["Alice"]
-	round.JoinedPlayers["Bob"] = core.players["Bob"]
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 
 	pgAlice := model.NewPlayer(0, "Alice", defaultChips)
 	pgBob := model.NewPlayer(1, "Bob", defaultChips)
@@ -39,13 +39,17 @@ func twoPlayerRoundInProgress(t *testing.T) (*serverCore, *Round, chan transport
 	table.CurrentToActPos = 0
 	table.NumPlayersActive = 2
 
-	collectBlinds(table)
+	game.CollectBlinds(table)
 
 	round.Table = table
 	round.PlayerOrder = []string{"Alice", "Bob"}
-	round.PendingTokens["Alice"] = "alice-token"
+	round.JoinedPlayers["Alice"] = pgAlice
+	round.JoinedPlayers["Bob"] = pgBob
+
+	session.PendingTokens["Alice"] = "alice-token"
 
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateInProgress
 
 	return core, round, outbound
@@ -107,8 +111,8 @@ func TestHandleAction_Fold_InvalidToken(t *testing.T) {
 func TestHandleAction_Fold_NotYourTurn(t *testing.T) {
 	t.Parallel()
 
-	core, round, outbound := twoPlayerRoundInProgress(t)
-	round.PendingTokens["Bob"] = "bob-token"
+	core, _, outbound := twoPlayerRoundInProgress(t)
+	core.currentSession.PendingTokens["Bob"] = "bob-token"
 
 	core.handleAction(protocol.CmdFold, "bob-token", "peer-bob")
 
@@ -203,7 +207,7 @@ func TestHandleAction_Call(t *testing.T) {
 	table := round.Table
 
 	initialChips := table.Players[0].Chips
-	callAmount := table.CurrentBet - table.Players[0].CurrentBet // SB owes 10
+	callAmount := table.CurrentBet - table.Players[0].CurrentBet
 
 	core.handleAction(protocol.CmdCall, "alice-token", "peer-alice")
 
@@ -278,7 +282,7 @@ func TestHandleAction_Raise_LimitEnforced(t *testing.T) {
 	t.Parallel()
 
 	core, round, outbound := twoPlayerRoundInProgress(t)
-	round.RaisesThisStreet["Alice"] = maxRaisesPerStreet
+	round.RaisesThisStreet["Alice"] = 1 // max raises per street = 1
 
 	core.handleAction(protocol.CmdRaise, "alice-token", "peer-alice")
 
@@ -312,7 +316,7 @@ func TestOnActionTimeout_AutoFold(t *testing.T) {
 
 	core.onActionTimeout(actionTimeoutFired{
 		roundNumber: round.RoundNumber,
-		roundID:     round.roundID,
+		roundID:     core.currentSession.RoundID(),
 		playerName:  "Alice",
 	})
 
@@ -335,9 +339,11 @@ func TestOnActionTimeout_StaleRound(t *testing.T) {
 
 	core.onActionTimeout(actionTimeoutFired{
 		roundNumber: 99,
-		roundID:     round.roundID,
+		roundID:     core.currentSession.RoundID(),
 		playerName:  "Alice",
 	})
+
+	_ = round // used above
 
 	if len(outbound) != 0 {
 		t.Error("expected no outbound messages for stale timeout event")
@@ -351,7 +357,7 @@ func TestOnActionTimeout_WrongPlayer(t *testing.T) {
 
 	core.onActionTimeout(actionTimeoutFired{
 		roundNumber: round.RoundNumber,
-		roundID:     round.roundID,
+		roundID:     core.currentSession.RoundID(),
 		playerName:  "Bob", // it's Alice's turn
 	})
 

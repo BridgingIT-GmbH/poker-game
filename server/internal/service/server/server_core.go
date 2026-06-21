@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -43,10 +45,11 @@ type actionTimeoutFired struct {
 //
 // State is owned exclusively by the actor goroutine in run().
 type serverCore struct {
-	players      map[string]*Player
-	roundNumber  int
-	currentRound *Round
-	roundState   RoundState
+	players        map[string]*Player
+	roundNumber    int
+	currentRound   *game.Round   // pure game state for the ongoing hand
+	currentSession *RoundSession // server-protocol state (tokens, round-ID) for the ongoing hand
+	roundState     RoundState
 
 	events   chan coreEvent
 	outbound chan<- transport.OutboundPackage
@@ -115,9 +118,11 @@ func (c *serverCore) handleMessage(data []byte, peer transport.PeerID) {
 	}
 }
 
-func (c *serverCore) broadcastToPlayers(message string, players map[string]*Player) {
-	for _, player := range players {
-		c.sendToPeer(message, player.Peer)
+func (c *serverCore) broadcastToPlayers(message string, joinedPlayers map[string]*model.Player) {
+	for name := range joinedPlayers {
+		if p, ok := c.players[name]; ok {
+			c.sendToPeer(message, p.Peer)
+		}
 	}
 }
 

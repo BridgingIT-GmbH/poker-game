@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -14,8 +16,6 @@ func TestTryStartRound_NotEnoughPlayers(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-
-	// Only one player registered – below the minimum.
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 
 	core.tryStartRound()
@@ -41,7 +41,7 @@ func TestTryStartRound_AlreadyInProgress(t *testing.T) {
 
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
-	core.roundState = RoundStateInProgress // not Idle
+	core.roundState = RoundStateInProgress
 
 	core.tryStartRound()
 
@@ -83,7 +83,6 @@ func TestTryStartRound_Success(t *testing.T) {
 		t.Fatal("expected join timer to be set")
 	}
 
-	// Both players must receive a ROUND STARTING message with their individual token.
 	got := map[transport.PeerID]string{}
 
 	for range core.players {
@@ -91,8 +90,7 @@ func TestTryStartRound_Success(t *testing.T) {
 		got[pkg.Peer] = string(pkg.Data)
 	}
 
-	// Verify Alice's message matches her pending token.
-	aliceToken, ok := core.currentRound.PendingTokens["Alice"]
+	aliceToken, ok := core.currentSession.PendingTokens["Alice"]
 	if !ok {
 		t.Fatal("no pending token for Alice")
 	}
@@ -102,8 +100,7 @@ func TestTryStartRound_Success(t *testing.T) {
 		t.Fatalf("Alice: expected %q, got %q", expectedAlice, got[peerAlice])
 	}
 
-	// Verify Bob's message matches his pending token.
-	bobToken, ok := core.currentRound.PendingTokens["Bob"]
+	bobToken, ok := core.currentSession.PendingTokens["Bob"]
 	if !ok {
 		t.Fatal("no pending token for Bob")
 	}
@@ -113,12 +110,10 @@ func TestTryStartRound_Success(t *testing.T) {
 		t.Fatalf("Bob: expected %q, got %q", expectedBob, got[peerBob])
 	}
 
-	// Tokens must be different.
 	if aliceToken == bobToken {
 		t.Fatal("expected unique tokens for each player, got identical tokens")
 	}
 
-	// Stop the timer so it doesn't interfere with other tests.
 	core.joinTimer.Stop()
 }
 
@@ -128,12 +123,13 @@ func TestOnJoinTimeout_StaleRoundNumber(t *testing.T) {
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
 
-	round, _ := NewRound(1)
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateWaitingForPlayers
 
-	// Fire event with a different round number – must be ignored.
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: 99, roundID: round.roundID})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: 99, roundID: session.RoundID()})
 
 	if core.roundState != RoundStateWaitingForPlayers {
 		t.Fatalf("state should be unchanged, got %v", core.roundState)
@@ -150,11 +146,12 @@ func TestOnJoinTimeout_StaleToken(t *testing.T) {
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
 
-	round, _ := NewRound(1)
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateWaitingForPlayers
 
-	// Fire event with a wrong roundID – must be ignored.
 	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: "wrong-id"})
 
 	if core.roundState != RoundStateWaitingForPlayers {
@@ -171,16 +168,15 @@ func TestOnJoinTimeout_NotEnoughPlayersJoined(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-
-	// One registered player – not enough to trigger a new round after the abort.
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 
-	round, _ := NewRound(1)
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateWaitingForPlayers
-	// Zero players joined – below minPlayersToStart.
 
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: session.RoundID()})
 
 	if core.currentRound != nil {
 		t.Fatal("round should have been aborted")
@@ -236,21 +232,22 @@ func assertStartedRoundMessages(
 func TestOnJoinTimeout_EnoughPlayersJoined(t *testing.T) {
 	t.Parallel()
 
-	// 2× ROUND STARTED + 2× CARDS + 1× YOUR TURN = 5 messages
 	outbound := make(chan transport.OutboundPackage, 16)
 	core := newServerCore(outbound)
 
-	playerAlice := &Player{Name: "Alice", Peer: transport.PeerID("peer-alice")}
-	playerBob := &Player{Name: "Bob", Peer: transport.PeerID("peer-bob")}
+	core.players["Alice"] = &Player{Name: "Alice", Peer: transport.PeerID("peer-alice")}
+	core.players["Bob"] = &Player{Name: "Bob", Peer: transport.PeerID("peer-bob")}
 
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = playerAlice
-	round.JoinedPlayers["Bob"] = playerBob
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
+	round.JoinedPlayers["Alice"] = &model.Player{Name: "Alice"}
+	round.JoinedPlayers["Bob"] = &model.Player{Name: "Bob"}
 
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateWaitingForPlayers
 
-	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: round.roundID})
+	core.onJoinTimeout(joinTimeoutFired{roundNumber: round.RoundNumber, roundID: session.RoundID()})
 
 	if core.roundState != RoundStateInProgress {
 		t.Fatalf("expected state InProgress, got %v", core.roundState)
@@ -268,7 +265,6 @@ func TestStartRound_NilRound(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	// currentRound is nil – must not panic.
 	core.startRound()
 
 	if len(outbound) != 0 {
@@ -279,17 +275,22 @@ func TestStartRound_NilRound(t *testing.T) {
 func TestStartRound_Success(t *testing.T) {
 	t.Parallel()
 
-	// 2× ROUND STARTED + 2× CARDS + 1× YOUR TURN = 5 messages
 	outbound := make(chan transport.OutboundPackage, 16)
 	core := newServerCore(outbound)
 
 	peerAlice := transport.PeerID("peer-alice")
 	peerBob := transport.PeerID("peer-bob")
 
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = &Player{Name: "Alice", Peer: peerAlice}
-	round.JoinedPlayers["Bob"] = &Player{Name: "Bob", Peer: peerBob}
+	core.players["Alice"] = &Player{Name: "Alice", Peer: peerAlice}
+	core.players["Bob"] = &Player{Name: "Bob", Peer: peerBob}
+
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
+	round.JoinedPlayers["Alice"] = &model.Player{Name: "Alice"}
+	round.JoinedPlayers["Bob"] = &model.Player{Name: "Bob"}
+
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateWaitingForPlayers
 
 	core.startRound()
@@ -302,7 +303,6 @@ func TestStartRound_Success(t *testing.T) {
 		t.Fatal("joinTimer should be nil after startRound")
 	}
 
-	// Collect all 5 messages.
 	const totalMessages = 5
 
 	pkgs := make([]transport.OutboundPackage, totalMessages)

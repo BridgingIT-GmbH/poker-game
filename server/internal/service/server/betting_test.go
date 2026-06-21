@@ -4,39 +4,10 @@ import (
 	"testing"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
-
-func TestIsBettingRoundOver(t *testing.T) {
-	t.Parallel()
-
-	alice := &model.Player{IsActive: true, HasActed: true, CurrentBet: 20}
-	bob := &model.Player{IsActive: true, HasActed: true, CurrentBet: 20}
-	table := &model.Table{Players: []*model.Player{alice, bob}, CurrentBet: 20}
-
-	if !isBettingRoundOver(table) {
-		t.Error("expected round to be over when all players acted and bets match")
-	}
-
-	bob.HasActed = false
-
-	if isBettingRoundOver(table) {
-		t.Error("expected round NOT to be over when Bob hasn't acted")
-	}
-}
-
-func TestIsBettingRoundOver_FoldedPlayerIgnored(t *testing.T) {
-	t.Parallel()
-
-	alice := &model.Player{IsActive: true, HasActed: true, CurrentBet: 20}
-	bob := &model.Player{IsActive: false, HasFolded: true, HasActed: false}
-	table := &model.Table{Players: []*model.Player{alice, bob}, CurrentBet: 20}
-
-	if !isBettingRoundOver(table) {
-		t.Error("expected round to be over when only non-folded player has acted")
-	}
-}
 
 func TestAdvanceBettingRound_PreFlopToFlop(t *testing.T) {
 	t.Parallel()
@@ -47,9 +18,8 @@ func TestAdvanceBettingRound_PreFlopToFlop(t *testing.T) {
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
 
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = core.players["Alice"]
-	round.JoinedPlayers["Bob"] = core.players["Bob"]
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 
 	pgAlice := model.NewPlayer(0, "Alice", defaultChips)
 	pgBob := model.NewPlayer(1, "Bob", defaultChips)
@@ -66,7 +36,11 @@ func TestAdvanceBettingRound_PreFlopToFlop(t *testing.T) {
 
 	round.Table = table
 	round.PlayerOrder = []string{"Alice", "Bob"}
+	round.JoinedPlayers["Alice"] = pgAlice
+	round.JoinedPlayers["Bob"] = pgBob
+
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateInProgress
 
 	core.advanceBettingRound(round)
@@ -101,9 +75,8 @@ func TestAdvanceBettingRound_ResetsRaiseCounters(t *testing.T) {
 	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
 	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
 
-	round, _ := NewRound(1)
-	round.JoinedPlayers["Alice"] = core.players["Alice"]
-	round.JoinedPlayers["Bob"] = core.players["Bob"]
+	round := game.NewRound(1)
+	session, _ := NewRoundSession()
 	round.RaisesThisStreet["Alice"] = 1
 	round.RaisesThisStreet["Bob"] = 1
 
@@ -122,7 +95,11 @@ func TestAdvanceBettingRound_ResetsRaiseCounters(t *testing.T) {
 
 	round.Table = table
 	round.PlayerOrder = []string{"Alice", "Bob"}
+	round.JoinedPlayers["Alice"] = pgAlice
+	round.JoinedPlayers["Bob"] = pgBob
+
 	core.currentRound = round
+	core.currentSession = session
 	core.roundState = RoundStateInProgress
 
 	core.advanceBettingRound(round)

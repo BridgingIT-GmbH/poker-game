@@ -3,6 +3,7 @@ package server
 import (
 	"log/slog"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -38,7 +39,7 @@ func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
 		return
 	}
 
-	if !c.currentRound.consumeToken(playerName, token) {
+	if !c.currentSession.ConsumeToken(playerName, token) {
 		c.sendToPeer(string(protocol.CmdRejected+";Invalid token\n"), peer)
 		slog.Warn(
 			"Player tried to join with invalid token",
@@ -55,6 +56,6 @@ func (c *serverCore) handleJoin(token string, peer transport.PeerID) {
 		return
 	}
 
-	c.currentRound.JoinedPlayers[playerName] = c.players[playerName]
+	c.currentRound.JoinedPlayers[playerName] = &model.Player{Name: playerName}
 	slog.Info("Player joined round", "name", playerName, "round", c.currentRound.RoundNumber)
 }
