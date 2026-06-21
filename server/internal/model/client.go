@@ -1,8 +1,8 @@
-package server
+package model
 
 import "github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 
-type Player struct {
+type Client struct {
 	Name string
 	Peer transport.PeerID
 }

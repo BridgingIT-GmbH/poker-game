@@ -44,7 +44,7 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 	broadcastCmd := protocol.CommandPlayer(string(result))
 
 	c.broadcastToPlayers(fmt.Sprintf("%s;%s\n", broadcastCmd, playerName), round.JoinedPlayers)
-	slog.Info("Player action", "player", playerName, "action", broadcastCmd, "pot", round.Table.Pot)
+	slog.Info("Client action", "player", playerName, "action", broadcastCmd, "pot", round.Table.Pot)
 
 	c.advanceTurn(round)
 }

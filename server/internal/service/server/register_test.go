@@ -3,6 +3,7 @@ package server
 import (
 	"testing"
 
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
@@ -13,7 +14,7 @@ func TestRegisterPlayer(t *testing.T) {
 	tests := []struct {
 		name           string
 		playerName     string
-		existingPlayer *Player
+		existingPlayer *model.Client
 		expectedMsg    string
 		shouldRegister bool
 	}{
@@ -22,7 +23,7 @@ func TestRegisterPlayer(t *testing.T) {
 		{
 			"duplicate name",
 			"Bob",
-			&Player{Name: "Bob", Peer: "known"},
+			&model.Client{Name: "Bob", Peer: "known"},
 			string(protocol.CmdRejected + ";Name already taken\n"),
 			false,
 		},

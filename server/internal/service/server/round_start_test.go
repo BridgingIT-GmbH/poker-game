@@ -16,7 +16,7 @@ func TestTryStartRound_NotEnoughPlayers(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: "peer-alice"}
 
 	core.tryStartRound()
 
@@ -39,8 +39,8 @@ func TestTryStartRound_AlreadyInProgress(t *testing.T) {
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
 
-	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: "peer-alice"}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: "peer-bob"}
 	core.roundState = RoundStateInProgress
 
 	core.tryStartRound()
@@ -62,8 +62,8 @@ func TestTryStartRound_Success(t *testing.T) {
 
 	peerAlice := transport.PeerID("peer-alice")
 	peerBob := transport.PeerID("peer-bob")
-	core.players["Alice"] = &Player{Name: "Alice", Peer: peerAlice}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: peerBob}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: peerAlice}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: peerBob}
 
 	core.tryStartRound()
 
@@ -168,7 +168,7 @@ func TestOnJoinTimeout_NotEnoughPlayersJoined(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: "peer-alice"}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()
@@ -235,8 +235,8 @@ func TestOnJoinTimeout_EnoughPlayersJoined(t *testing.T) {
 	outbound := make(chan transport.OutboundPackage, 16)
 	core := newServerCore(outbound)
 
-	core.players["Alice"] = &Player{Name: "Alice", Peer: transport.PeerID("peer-alice")}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: transport.PeerID("peer-bob")}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: transport.PeerID("peer-alice")}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: transport.PeerID("peer-bob")}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()
@@ -281,8 +281,8 @@ func TestStartRound_Success(t *testing.T) {
 	peerAlice := transport.PeerID("peer-alice")
 	peerBob := transport.PeerID("peer-bob")
 
-	core.players["Alice"] = &Player{Name: "Alice", Peer: peerAlice}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: peerBob}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: peerAlice}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: peerBob}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()

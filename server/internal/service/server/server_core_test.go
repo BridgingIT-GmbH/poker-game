@@ -44,7 +44,7 @@ func TestHandleMessage(t *testing.T) {
 	}{
 		{"valid register", []byte("REGISTER;TestPlayer"), string(protocol.CmdRegistered + "\n")},
 		{"invalid format", []byte("REGISTER"), string(protocol.CmdRejected + ";invalid message format\n")},
-		{"unknown command", []byte("UNKNOWN;Player"), string(protocol.CmdRejected + ";Unknown command\n")},
+		{"unknown command", []byte("UNKNOWN;Client"), string(protocol.CmdRejected + ";Unknown command\n")},
 	}
 
 	for _, test := range tests {
@@ -70,8 +70,8 @@ func TestBroadcastToPlayers(t *testing.T) {
 	core := newServerCore(outbound)
 
 	// broadcastToPlayers looks up peers from core.players using the keys of joinedPlayers.
-	core.players["Player1"] = &Player{Name: "Player1", Peer: "peer-1"}
-	core.players["Player2"] = &Player{Name: "Player2", Peer: "peer-2"}
+	core.players["Player1"] = &model.Client{Name: "Player1", Peer: "peer-1"}
+	core.players["Player2"] = &model.Client{Name: "Player2", Peer: "peer-2"}
 
 	joinedPlayers := map[string]*model.Player{
 		"Player1": {Name: "Player1"},

@@ -38,8 +38,8 @@ func setupDealTest(
 	outbound := make(chan transport.OutboundPackage, 16)
 	core := newServerCore(outbound)
 
-	core.players["Alice"] = &Player{Name: "Alice", Peer: testPeerAlice}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: testPeerBob}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: testPeerAlice}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: testPeerBob}
 
 	round := game.NewRound(roundNumber)
 	session, _ := NewRoundSession()

@@ -16,7 +16,7 @@ func TestHandleJoin(t *testing.T) {
 	core := newServerCore(outbound)
 
 	peer := transport.PeerID("peer-3")
-	core.players["TestPlayer"] = &Player{Name: "TestPlayer", Peer: peer}
+	core.players["TestPlayer"] = &model.Client{Name: "TestPlayer", Peer: peer}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()
@@ -41,7 +41,7 @@ func TestHandleJoinInvalidToken(t *testing.T) {
 	core := newServerCore(outbound)
 
 	peer := transport.PeerID("peer-4")
-	core.players["TestPlayer"] = &Player{Name: "TestPlayer", Peer: peer}
+	core.players["TestPlayer"] = &model.Client{Name: "TestPlayer", Peer: peer}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()
@@ -75,7 +75,7 @@ func TestHandleJoinNotRegistered(t *testing.T) {
 	core.handleJoin("any-token", peer)
 
 	pkg := readOutbound(t, outbound)
-	assertOutbound(t, pkg, peer, string(protocol.CmdRejected+";Player not registered\n"))
+	assertOutbound(t, pkg, peer, string(protocol.CmdRejected+";Client not registered\n"))
 
 	_ = model.Player{} // keep model import used
 }

@@ -21,8 +21,8 @@ func twoPlayerRoundInProgress(t *testing.T) (*serverCore, *game.Round, chan tran
 	outbound := make(chan transport.OutboundPackage, 32)
 	core := newServerCore(outbound)
 
-	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
-	core.players["Bob"] = &Player{Name: "Bob", Peer: "peer-bob"}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: "peer-alice"}
+	core.players["Bob"] = &model.Client{Name: "Bob", Peer: "peer-bob"}
 
 	round := game.NewRound(1)
 	session, _ := NewRoundSession()
@@ -85,7 +85,7 @@ func TestHandleAction_NoRound(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	core.players["Alice"] = &Player{Name: "Alice", Peer: "peer-alice"}
+	core.players["Alice"] = &model.Client{Name: "Alice", Peer: "peer-alice"}
 
 	core.handleAction(protocol.CmdFold, "any", "peer-alice")
 

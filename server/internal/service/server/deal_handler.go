@@ -42,7 +42,7 @@ func (c *serverCore) dealCards() {
 	round.Table = table
 	round.PlayerOrder = names
 
-	// Sync JoinedPlayers values with the real model.Player objects from the table.
+	// Sync JoinedPlayers values with the real model.Client objects from the table.
 	for i, name := range names {
 		round.JoinedPlayers[name] = table.Players[i]
 	}

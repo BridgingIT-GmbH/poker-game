@@ -45,7 +45,7 @@ type actionTimeoutFired struct {
 //
 // State is owned exclusively by the actor goroutine in run().
 type serverCore struct {
-	players        map[string]*Player
+	players        map[string]*model.Client
 	roundNumber    int
 	currentRound   *game.Round   // pure game state for the ongoing hand
 	currentSession *RoundSession // server-protocol state (tokens, round-ID) for the ongoing hand
@@ -60,7 +60,7 @@ type serverCore struct {
 
 func newServerCore(outbound chan<- transport.OutboundPackage) *serverCore {
 	return &serverCore{
-		players:     make(map[string]*Player),
+		players:     make(map[string]*model.Client),
 		roundState:  RoundStateIdle,
 		roundNumber: 0,
 		events:      make(chan coreEvent, eventsChanBufferSize),
