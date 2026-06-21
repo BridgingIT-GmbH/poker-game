@@ -8,6 +8,7 @@ import (
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/service/game"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
+	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
 func (c *serverCore) tryStartRound() {
@@ -118,4 +119,23 @@ func (c *serverCore) startRound() {
 	c.joinTimer = nil
 
 	c.dealCards()
+}
+
+// resendRoundStartingIfNeeded re-sends the ROUND STARTING token to a
+// reconnecting player whose peer address has just been updated.
+// It is a no-op when no round is waiting for players or the player has no
+// pending join token (e.g. they already joined or were never invited).
+func (c *serverCore) resendRoundStartingIfNeeded(name string, peer transport.PeerID) {
+	if c.currentSession == nil || c.roundState != RoundStateWaitingForPlayers {
+		return
+	}
+
+	token, ok := c.currentSession.PendingTokens[name]
+	if !ok {
+		return
+	}
+
+	msg := fmt.Sprintf("%s;%s\n", protocol.CmdRoundStarting, token)
+	c.sendToPeer(msg, peer)
+	slog.Info("Re-sent ROUND STARTING to reconnected player", "name", name)
 }

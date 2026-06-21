@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// currentToken holds the most recently received YOUR TURN token.
+// It is cleared after use so it is only sent once.
+var (
+	currentToken string
+)
+
 func main() {
 	if len(os.Args) == 1 {
 		fmt.Println("Please provide host:port")
@@ -53,6 +59,13 @@ func main() {
 			break
 		}
 
+		// Append the pending action token if not already present.
+		// The token is kept until a new YOUR TURN message replaces it,
+		// so an invalid/rejected command does not lose the token.
+		if currentToken != "" && !strings.Contains(message, currentToken) {
+			message = message + ";" + currentToken
+		}
+
 		_, err := conn.Write([]byte(message))
 		if err != nil {
 			log.Printf("Error sending message: %v\n", err)
@@ -77,9 +90,12 @@ func listenForMessages(conn *net.UDPConn) {
 		message := string(buffer[:n])
 		fmt.Printf("\n[Server] %s\n> ", message)
 
-		// Handle ROUND STARTING message
 		if strings.HasPrefix(message, "ROUND STARTING;") {
 			handleRoundStarting(message, conn)
+		}
+
+		if strings.HasPrefix(message, "YOUR TURN;") {
+			handleYourTurn(message)
 		}
 	}
 }
@@ -99,6 +115,18 @@ func handleRoundStarting(message string, conn *net.UDPConn) {
 	} else {
 		fmt.Printf("[Client] Automatically sent: %s\n> ", joinMessage)
 	}
+}
+
+// handleYourTurn stores the action token from a YOUR TURN message.
+func handleYourTurn(message string) {
+	parts := strings.SplitN(message, ";", 2)
+	if len(parts) < 2 {
+		log.Println("Invalid YOUR TURN message format")
+		return
+	}
+
+	token := strings.TrimSpace(parts[1])
+	currentToken = token
 }
 
 func exitOnError(err error) {

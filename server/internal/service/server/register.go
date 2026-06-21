@@ -17,9 +17,15 @@ func (c *serverCore) registerPlayer(name string, peer transport.PeerID) {
 		return
 	}
 
-	if _, exists := c.players[name]; exists {
-		slog.Warn("Client rejected because name is already taken", "name", name, "peer", string(peer))
-		c.sendToPeer(string(protocol.CmdRejected+";Name already taken\n"), peer)
+	if existing, exists := c.players[name]; exists {
+		// Allow reconnect: update the peer so future messages reach the new address.
+		// Any round currently in progress will auto-fold the player via the action
+		// timer; they will be included normally in the next round.
+		slog.Info("Client re-registered (peer updated)",
+			"name", name, "old_peer", string(existing.Peer), "new_peer", string(peer))
+		existing.Peer = peer
+		c.sendToPeer(string(protocol.CmdRegistered+"\n"), peer)
+		c.resendRoundStartingIfNeeded(name, peer)
 
 		return
 	}
