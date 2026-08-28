@@ -18,8 +18,8 @@ import (
 // 0 or 1 would risk deadlock; 128 gives ample headroom for realistic traffic.
 const (
 	minPlayersToStart    = 2
-	joinTimeout          = 5 * time.Second
-	actionTimeout        = 30 * time.Second // TODO this is a high value for development. Reduce it in production.
+	joinTimeout          = 2 * time.Second
+	actionTimeout        = 2 * time.Second
 	eventsChanBufferSize = 128
 )
 
