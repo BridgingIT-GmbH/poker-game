@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/BridgingIT-GmbH/poker-game/client/internal/bot"
-	"github.com/BridgingIT-GmbH/poker-game/client/strategy"
 )
 
 func main() {
@@ -22,7 +21,7 @@ func main() {
 
 	slog.Info("Connecting to server", "addr", addr, "player", name)
 
-	b := bot.New(name, conn, strategy.MyStrategy{})
+	b := bot.New(name, conn)
 
 	exitOnError("register", b.Connect())
 	exitOnError("run", b.Run())
