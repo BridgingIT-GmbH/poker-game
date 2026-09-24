@@ -1,15 +1,17 @@
 package game
 
-import "github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+import (
+	"errors"
+
+	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
+)
 
 // ShowdownResult holds the outcome of a finished hand.
 type ShowdownResult struct {
-	WinnerName     string
-	Pot            int64
-	IsLastStanding bool // true when all other players folded (no hand comparison needed)
+	Winners []*model.Player
+	Pot     int64
 	// Survivors contains all players still active at showdown, with their hole cards.
-	// Only populated when IsLastStanding is false.
-	Survivors []SurvivorInfo
+	Survivors []*model.Player
 }
 
 // SurvivorInfo describes a player who reached the showdown.
@@ -17,6 +19,8 @@ type SurvivorInfo struct {
 	Name      string
 	HoleCards [2]model.Card
 }
+
+var errNoPlayersLeft = errors.New("no active, non-folded players left")
 
 // DetermineWinner evaluates the end-of-hand state and returns a ShowdownResult.
 //
@@ -26,39 +30,41 @@ type SurvivorInfo struct {
 // If multiple players remain the result includes all survivors so the caller
 // can broadcast their hole cards. Full hand-rank evaluation is a future TODO:
 // for now the first survivor in seat order is returned as the provisional winner.
-func DetermineWinner(round *Round) ShowdownResult {
+func DetermineWinner(round *Round) (*ShowdownResult, error) {
 	table := round.Table
 
-	var survivors []SurvivorInfo
+	// Collect survivors (active and not folded).
+	survivors := make([]*model.Player, 0)
 
-	for i, name := range round.PlayerOrder {
-		p := table.Players[i]
-		if p.IsActive && !p.HasFolded {
-			survivors = append(survivors, SurvivorInfo{
-				Name:      name,
-				HoleCards: p.HoleCards,
-			})
+	for _, player := range table.Players {
+		if player != nil && player.IsActive && !player.HasFolded {
+			survivors = append(survivors, player)
 		}
 	}
 
-	// Single survivor – wins by last-player-standing (all others folded).
+	// No survivors → error.
+	if len(survivors) == 0 {
+		return nil, errNoPlayersLeft
+	}
+
+	// If only one player remains, they win the pot without card comparison.
 	if len(survivors) == 1 {
-		return ShowdownResult{
-			WinnerName:     survivors[0].Name,
-			Pot:            table.Pot,
-			IsLastStanding: true,
-		}
+		return &ShowdownResult{
+			Winners:   []*model.Player{survivors[0]},
+			Pot:       table.Pot,
+			Survivors: survivors,
+		}, nil
 	}
 
-	// Multiple survivors – full showdown.
-	// TODO: replace provisional first-seat winner with proper hand evaluation
-	// via model.EvaluateHand once that is implemented.
-	winner := survivors[0].Name
-
-	return ShowdownResult{
-		WinnerName:     winner,
-		Pot:            table.Pot,
-		IsLastStanding: false,
-		Survivors:      survivors,
+	// Multiple survivors → perform full showdown evaluation.
+	winners, _, err := EvaluateShowdown(table)
+	if err != nil {
+		return nil, err
 	}
+
+	return &ShowdownResult{
+		Winners:   winners,
+		Pot:       table.Pot,
+		Survivors: survivors,
+	}, nil
 }
