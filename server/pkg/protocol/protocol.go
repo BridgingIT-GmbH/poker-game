@@ -10,12 +10,13 @@ type CommandPlayer string
 type CommandServer string
 
 const (
-	CmdRegister CommandPlayer = "REGISTER"
-	CmdJoin     CommandPlayer = "JOIN"
-	CmdFold     CommandPlayer = "FOLD"
-	CmdCheck    CommandPlayer = "CHECK"
-	CmdCall     CommandPlayer = "CALL"
-	CmdRaise    CommandPlayer = "RAISE"
+	CmdRegister          CommandPlayer = "REGISTER"
+	CmdRegisterSpectator CommandPlayer = "REGISTER_SPECTATOR"
+	CmdJoin              CommandPlayer = "JOIN"
+	CmdFold              CommandPlayer = "FOLD"
+	CmdCheck             CommandPlayer = "CHECK"
+	CmdCall              CommandPlayer = "CALL"
+	CmdRaise             CommandPlayer = "RAISE"
 )
 
 const (
@@ -25,6 +26,7 @@ const (
 	CmdRoundStarted  CommandServer = "ROUND STARTED"
 	CmdCards         CommandServer = "CARDS"
 	CmdYourTurn      CommandServer = "YOUR TURN"
+	CmdTurn          CommandServer = "TURN"
 	CmdBoard         CommandServer = "BOARD"
 	CmdScore         CommandServer = "SCORE"
 )

@@ -60,4 +60,6 @@ func (c *serverCore) broadcastBoard(round *game.Round) {
 
 	msg := fmt.Sprintf("%s;%s\n", protocol.CmdBoard, strings.Join(cards, ","))
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
+
+	c.sendToSpectators(msg)
 }

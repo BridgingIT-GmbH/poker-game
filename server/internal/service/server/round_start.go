@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -105,20 +106,24 @@ func (c *serverCore) startRound() {
 		playerNames = append(playerNames, name)
 	}
 
-	message := fmt.Sprintf(
+	rand.Shuffle(len(playerNames), func(i, j int) { playerNames[i], playerNames[j] = playerNames[j], playerNames[i] })
+
+	msg := fmt.Sprintf(
 		"%s;%d;%s\n",
 		protocol.CmdRoundStarted,
 		c.currentRound.RoundNumber,
 		strings.Join(playerNames, ","),
 	)
 
-	c.broadcastToPlayers(message, c.currentRound.JoinedPlayers)
+	c.broadcastToPlayers(msg, c.currentRound.JoinedPlayers)
 	slog.Info("Round started", "round", c.currentRound.RoundNumber, "players", playerNames)
+
+	c.sendToSpectators(msg)
 
 	c.roundState = RoundStateInProgress
 	c.joinTimer = nil
 
-	c.dealCards()
+	c.dealCards(playerNames)
 }
 
 // resendRoundStartingIfNeeded re-sends the ROUND STARTING token to a
