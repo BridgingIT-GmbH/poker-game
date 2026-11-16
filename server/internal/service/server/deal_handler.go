@@ -21,20 +21,14 @@ const (
 // it calls the game package to build the player order, table and collect blinds,
 // shuffles the deck, deals hole cards to each player (sent via CARDS message)
 // and prompts the first player to act.
-func (c *serverCore) dealCards() {
+func (c *serverCore) dealCards(names []string) {
 	round := c.currentRound
 	if round == nil {
 		return
 	}
 
-	// Extract joined player names from the game round.
-	joinedNames := make([]string, 0, len(round.JoinedPlayers))
-	for name := range round.JoinedPlayers {
-		joinedNames = append(joinedNames, name)
-	}
-
-	names, players := game.BuildOrderedPlayers(joinedNames, defaultChips)
-	table := game.BuildTable(players, round.RoundNumber, defaultSmallBlind, defaultBigBlind)
+	players := game.BuildOrderedPlayers(names, defaultChips)
+	table := game.BuildTable(players, defaultSmallBlind, defaultBigBlind)
 	game.CollectBlinds(table)
 
 	c.shuffleAndDeal(table, names)
@@ -72,7 +66,8 @@ func (c *serverCore) shuffleAndDeal(table *model.Table, names []string) {
 }
 
 // promptCurrentToAct generates a one-time action token for the active player,
-// sends a YOUR_TURN message and starts the action timer.
+// sends a YOUR_TURN message, tells spectators whose turn it is and starts the
+// action timer.
 func (c *serverCore) promptCurrentToAct(round *game.Round) {
 	toActName := round.PlayerOrder[round.Table.CurrentToActPos]
 
@@ -93,6 +88,8 @@ func (c *serverCore) promptCurrentToAct(round *game.Round) {
 	c.currentSession.PendingTokens[toActName] = token
 	msg := fmt.Sprintf("%s;%s\n", protocol.CmdYourTurn, token)
 	c.sendToPeer(msg, serverPlayer.Peer)
+
+	c.sendToSpectators(fmt.Sprintf("%s;%s\n", protocol.CmdTurn, toActName))
 
 	// Cancel the previous action timer and start a fresh one.
 	if c.actionTimer != nil {

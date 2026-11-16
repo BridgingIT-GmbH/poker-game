@@ -10,10 +10,10 @@ func TestBuildOrderedPlayers_Length(t *testing.T) {
 	t.Parallel()
 
 	names := []string{"Alice", "Bob", "Charlie"}
-	orderedNames, players := BuildOrderedPlayers(names, 1000)
+	players := BuildOrderedPlayers(names, 1000)
 
-	if len(orderedNames) != 3 {
-		t.Errorf("expected 3 ordered names, got %d", len(orderedNames))
+	if len(names) != 3 {
+		t.Errorf("expected 3 ordered names, got %d", len(names))
 	}
 
 	if len(players) != 3 {
@@ -25,7 +25,7 @@ func TestBuildOrderedPlayers_ChipsAndActive(t *testing.T) {
 	t.Parallel()
 
 	names := []string{"Alice", "Bob"}
-	_, players := BuildOrderedPlayers(names, 500)
+	players := BuildOrderedPlayers(names, 500)
 
 	for _, p := range players {
 		if p.Chips != 500 {
@@ -42,7 +42,7 @@ func TestBuildOrderedPlayers_ContainsAllNames(t *testing.T) {
 	t.Parallel()
 
 	input := []string{"Alice", "Bob", "Charlie"}
-	orderedNames, players := BuildOrderedPlayers(input, 1000)
+	players := BuildOrderedPlayers(input, 1000)
 
 	// Build a set of the input names for lookup.
 	nameSet := make(map[string]struct{}, len(input))
@@ -50,7 +50,7 @@ func TestBuildOrderedPlayers_ContainsAllNames(t *testing.T) {
 		nameSet[n] = struct{}{}
 	}
 
-	for _, n := range orderedNames {
+	for _, n := range input {
 		if _, ok := nameSet[n]; !ok {
 			t.Errorf("unexpected name in ordered list: %s", n)
 		}
@@ -87,7 +87,7 @@ func TestBuildTable_Positions_TwoPlayers(t *testing.T) {
 	}
 
 	// Round 1: dealer=0, sb=1, bb=0 (heads-up wraps), first-to-act=1
-	table := BuildTable(players, 1, 10, 20)
+	table := BuildTable(players, 10, 20)
 
 	if table.DealerPosition != 0 {
 		t.Errorf("expected DealerPosition=0, got %d", table.DealerPosition)
@@ -118,7 +118,7 @@ func TestBuildTable_Positions_ThreePlayers(t *testing.T) {
 	}
 
 	// Round 1: dealer=(1-1)%3=0, sb=1, bb=2, first-to-act=0
-	table := BuildTable(players, 1, 10, 20)
+	table := BuildTable(players, 10, 20)
 
 	if table.DealerPosition != 0 {
 		t.Errorf("expected DealerPosition=0, got %d", table.DealerPosition)
@@ -146,14 +146,14 @@ func TestBuildTable_NumPlayersActive(t *testing.T) {
 		model.NewPlayer(2, "Charlie", 1000),
 	}
 
-	table := BuildTable(players, 1, 10, 20)
+	table := BuildTable(players, 10, 20)
 
 	if table.NumPlayersActive != 3 {
 		t.Errorf("expected NumPlayersActive=3, got %d", table.NumPlayersActive)
 	}
 }
 
-func TestBuildTable_DealerRotatesEachRound(t *testing.T) {
+func TestBuildTable_DealerAtPositionZero(t *testing.T) {
 	t.Parallel()
 
 	players := []*model.Player{
@@ -163,8 +163,8 @@ func TestBuildTable_DealerRotatesEachRound(t *testing.T) {
 	}
 
 	for round := 1; round <= 6; round++ {
-		table := BuildTable(players, round, 10, 20)
-		expected := (round - 1) % 3
+		table := BuildTable(players, 10, 20)
+		expected := 0
 
 		if table.DealerPosition != expected {
 			t.Errorf("round %d: expected DealerPosition=%d, got %d", round, expected, table.DealerPosition)

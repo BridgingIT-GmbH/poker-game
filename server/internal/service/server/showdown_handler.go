@@ -33,6 +33,8 @@ func (c *serverCore) handleShowdown(round *game.Round) {
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
 	slog.Info("Showdown", "round", round.RoundNumber, "winner", result.Winners[0].Name, "pot", result.Pot)
 
+	c.sendToSpectators(msg)
+
 	c.endRound()
 }
 
@@ -48,6 +50,8 @@ func (c *serverCore) handleLastPlayerStanding(round *game.Round) {
 	msg := fmt.Sprintf("%s;%s:%d\n", protocol.CmdScore, result.Winners[0].Name, result.Pot)
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
 	slog.Info("Last player standing wins", "winners", result.Winners, "pot", result.Pot)
+
+	c.sendToSpectators(msg)
 
 	c.endRound()
 }

@@ -28,6 +28,10 @@ const (
 	testPeerBob   = transport.PeerID("peer-bob")
 )
 
+func testPlayerNames() []string {
+	return []string{"Alice", "Bob"}
+}
+
 // setupDealTest creates a core and round ready for dealCards() with two players.
 func setupDealTest(
 	t *testing.T,
@@ -58,7 +62,7 @@ func TestDealCards_NilRound(t *testing.T) {
 
 	outbound := make(chan transport.OutboundPackage, 8)
 	core := newServerCore(outbound)
-	core.dealCards()
+	core.dealCards(nil)
 
 	if len(outbound) != 0 {
 		t.Fatal("expected no outbound messages when currentRound is nil")
@@ -70,7 +74,7 @@ func TestDealCards_EachPlayerReceivesCards(t *testing.T) {
 
 	core, _, outbound := setupDealTest(t, 1)
 
-	core.dealCards()
+	core.dealCards(testPlayerNames())
 
 	pkgs := drainOutbound(t, outbound)
 
@@ -106,7 +110,7 @@ func TestDealCards_CardsFormat(t *testing.T) {
 	t.Parallel()
 
 	core, _, outbound := setupDealTest(t, 1)
-	core.dealCards()
+	core.dealCards(testPlayerNames())
 
 	pkgs := drainOutbound(t, outbound)
 
@@ -140,7 +144,7 @@ func TestDealCards_UniqueCards(t *testing.T) {
 	t.Parallel()
 
 	core, _, outbound := setupDealTest(t, 1)
-	core.dealCards()
+	core.dealCards(testPlayerNames())
 
 	pkgs := drainOutbound(t, outbound)
 
@@ -169,7 +173,7 @@ func TestDealCards_TablePopulated(t *testing.T) {
 	t.Parallel()
 
 	core, round, outbound := setupDealTest(t, 2)
-	core.dealCards()
+	core.dealCards(testPlayerNames())
 	drainOutbound(t, outbound)
 
 	if round.Table == nil {
@@ -189,8 +193,8 @@ func TestDealCards_TablePopulated(t *testing.T) {
 		t.Fatalf("PlayerOrder missing a player: %v", round.PlayerOrder)
 	}
 
-	if round.Table.DealerPosition != 1 {
-		t.Fatalf("expected DealerPosition 1, got %d", round.Table.DealerPosition)
+	if round.Table.DealerPosition != 0 {
+		t.Fatalf("expected DealerPosition 0, got %d", round.Table.DealerPosition)
 	}
 
 	const expectedRemaining = 48
@@ -203,7 +207,7 @@ func TestDealCards_YourTurnContainsToken(t *testing.T) {
 	t.Parallel()
 
 	core, round, outbound := setupDealTest(t, 1)
-	core.dealCards()
+	core.dealCards(testPlayerNames())
 
 	pkgs := drainOutbound(t, outbound)
 
@@ -244,4 +248,31 @@ func TestDealCards_YourTurnContainsToken(t *testing.T) {
 	}
 
 	_ = round
+}
+
+func TestDealCards_SpectatorsReceiveTurn(t *testing.T) {
+	t.Parallel()
+
+	const testPeerSpectator = transport.PeerID("peer-spectator")
+
+	core, round, outbound := setupDealTest(t, 1)
+	core.spectators["spectator_1"] = &model.Client{Name: "spectator_1", Peer: testPeerSpectator}
+
+	core.dealCards(testPlayerNames())
+
+	var turnMessages []string
+
+	for range twoPlayerDealMessages + 1 {
+		pkg := readOutbound(t, outbound)
+		if pkg.Peer == testPeerSpectator {
+			turnMessages = append(turnMessages, string(pkg.Data))
+		}
+	}
+
+	toAct := round.PlayerOrder[round.Table.CurrentToActPos]
+	want := string(protocol.CmdTurn) + ";" + toAct + "\n"
+
+	if len(turnMessages) != 1 || turnMessages[0] != want {
+		t.Fatalf("expected spectator to receive exactly %q, got %q", want, turnMessages)
+	}
 }

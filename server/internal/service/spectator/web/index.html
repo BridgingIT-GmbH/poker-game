@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Poker Game</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"></script>
+    <script src="https://cardmeister.github.io/elements.cardmeister.full.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .players { list-style: none; padding: 0; width: max-content; }
+        .players li { display: grid; grid-template-columns: 1.5em 4em 8em auto; gap: 4px; padding: 4px 0; }
+        .turn { color: #000; font-weight: bold; }
+        .action {
+            padding: 1px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold;
+            background: #64748b; color: #fff;
+        }
+        playing-card { display: inline-block; margin: 4px; }
+        playing-card img { height: 150px; width: auto; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Poker Game</h1>
+
+    <div hx-ext="sse" sse-connect="/events">
+        <div id="game-state" sse-swap="game-state">
+            <p>Warte auf den Gamestate...</p>
+        </div>
+    </div>
+</body>
+</html>

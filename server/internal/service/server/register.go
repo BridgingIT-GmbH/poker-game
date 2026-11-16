@@ -36,7 +36,18 @@ func (c *serverCore) registerPlayer(name string, peer transport.PeerID) {
 	slog.Info("Client registered", "name", name, "peer", string(peer))
 	slog.Info(strconv.Itoa(len(c.players)) + " players currently registered")
 
+	c.sendToSpectators(string(protocol.CmdRegistered) + ";" + name + "\n")
+
 	if len(c.players) >= minPlayersToStart && c.roundState == RoundStateIdle {
 		c.tryStartRound()
 	}
+}
+
+func (c *serverCore) registerSpectator(peer transport.PeerID) {
+	name := "spectator_" + strconv.Itoa(len(c.spectators)+1)
+	c.spectators[name] = &model.Client{Name: name, Peer: peer}
+	c.sendToPeer(string(protocol.CmdRegistered+"\n"), peer)
+
+	slog.Info("Spectator registered", "name", name, "peer", string(peer))
+	slog.Info(strconv.Itoa(len(c.spectators)) + " spectators currently registered")
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
@@ -45,6 +46,7 @@ type actionTimeoutFired struct {
 //
 // State is owned exclusively by the actor goroutine in run().
 type serverCore struct {
+	spectators     map[string]*model.Client
 	players        map[string]*model.Client
 	roundNumber    int
 	currentRound   *game.Round   // pure game state for the ongoing hand
@@ -60,6 +62,7 @@ type serverCore struct {
 
 func newServerCore(outbound chan<- transport.OutboundPackage) *serverCore {
 	return &serverCore{
+		spectators:  make(map[string]*model.Client),
 		players:     make(map[string]*model.Client),
 		roundState:  RoundStateIdle,
 		roundNumber: 0,
@@ -109,6 +112,8 @@ func (c *serverCore) handleMessage(data []byte, peer transport.PeerID) {
 	switch command {
 	case protocol.CmdRegister:
 		c.registerPlayer(message[1], peer)
+	case protocol.CmdRegisterSpectator:
+		c.registerSpectator(peer)
 	case protocol.CmdJoin:
 		c.handleJoin(message[1], peer)
 	case protocol.CmdFold, protocol.CmdCheck, protocol.CmdCall, protocol.CmdRaise:
@@ -135,4 +140,10 @@ func (c *serverCore) playerNameByPeer(peer transport.PeerID) string {
 	}
 
 	return ""
+}
+
+func (c *serverCore) sendToSpectators(s string) {
+	for spectator := range maps.Values(c.spectators) {
+		c.sendToPeer(s, spectator.Peer)
+	}
 }

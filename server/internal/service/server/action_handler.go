@@ -43,8 +43,11 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 	result := game.ApplyPlayerAction(game.Action(string(cmd)), round, playerName)
 	broadcastCmd := protocol.CommandPlayer(string(result))
 
-	c.broadcastToPlayers(fmt.Sprintf("%s;%s\n", broadcastCmd, playerName), round.JoinedPlayers)
+	msg := fmt.Sprintf("%s;%s\n", broadcastCmd, playerName)
+	c.broadcastToPlayers(msg, round.JoinedPlayers)
 	slog.Info("Client action", "player", playerName, "action", broadcastCmd, "pot", round.Table.Pot)
+
+	c.sendToSpectators(msg)
 
 	c.advanceTurn(round)
 }
@@ -78,10 +81,10 @@ func (c *serverCore) onActionTimeout(e actionTimeoutFired) {
 	table := c.currentRound.Table
 	game.ApplyFold(table, table.Players[table.CurrentToActPos])
 
-	c.broadcastToPlayers(
-		fmt.Sprintf("%s;%s\n", protocol.CmdFold, e.playerName),
-		c.currentRound.JoinedPlayers,
-	)
+	msg := fmt.Sprintf("%s;%s\n", protocol.CmdFold, e.playerName)
+	c.broadcastToPlayers(msg, c.currentRound.JoinedPlayers)
+
+	c.sendToSpectators(msg)
 
 	c.advanceTurn(c.currentRound)
 }
