@@ -15,7 +15,11 @@
 <div>
     {{ range .Board }}
     <playing-card cid="{{ . }}"></playing-card>
-    {{ else }}
+    {{ end }}
+    {{ range .HiddenBoardCards }}
+    <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+    {{ end }}
+    {{ if and (not .Board) (not .HiddenBoardCards) }}
     <span>Noch keine Karten</span>
     {{ end }}
 </div>

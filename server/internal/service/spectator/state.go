@@ -25,9 +25,20 @@ type GameState struct {
 	Score string
 }
 
+// HiddenBoardCards returns one entry per board card that has not been revealed
+// yet. Outside of a round (no players) there are no hidden cards.
+func (s GameState) HiddenBoardCards() []struct{} {
+	if len(s.Players) == 0 || len(s.Board) >= boardSize {
+		return nil
+	}
+
+	return make([]struct{}, boardSize-len(s.Board))
+}
+
 // Hub keeps the current game state and notifies connected SSE clients whenever
 // the state changes.
 const (
+	boardSize            = 5
 	subscriberBufferSize = 8
 	minMessageParts      = 2
 	roundStartedParts    = 3
