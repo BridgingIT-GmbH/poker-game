@@ -85,7 +85,7 @@ func (b *Bot) handleMessage(raw string) {
 // server.
 //
 // ╔════════════════════════════════════════════════════════════════════╗
-// ║  HIER GEHT'S LOS – baue hier deine eigene Poker-Strategie ein!       ║
+// ║  HIER GEHT'S LOS – baue hier deine eigene Poker-Strategie ein!     ║
 // ╚════════════════════════════════════════════════════════════════════╝
 //
 // Verfügbare Aktionen (protocol-Paket):

@@ -1,1 +1,4 @@
 /.idea/
+/java-client/out/
+/ts-client/node_modules/
+/ts-client/dist/
