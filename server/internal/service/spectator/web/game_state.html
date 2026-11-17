@@ -1,10 +1,11 @@
+<h1>{{ with .Round }}Poker Round {{ . }}{{ else }}Poker{{ end }}</h1>
 <h2>Players</h2>
 <div class="players">
     {{ range .Players }}
-    <div class="player{{ if and $.ToAct (eq .Name $.ToAct) }} to-act{{ end }}">
-        <div>
+    <div class="player{{ if and $.ToAct (eq .Name $.ToAct) }} to-act{{ end }}{{ if .Winner }} winner{{ end }}">
+        <div class="player-name">
             <b>{{ .Name }}</b>
-            {{ with .Roles }}<span class="roles">({{ range $i, $r := . }}{{ if $i }}, {{ end }}{{ $r }}{{ end }})</span>{{ end }}
+            {{ with .Roles }}<span class="roles">({{ range $i, $r := . }}{{ if $i }}/{{ end }}{{ $r }}{{ end }})</span>{{ end }}
         </div>
         <div class="player-cards">
             {{ range .Cards }}
@@ -14,8 +15,9 @@
             <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
             {{ end }}
         </div>
-        <div>
-            {{ with index $.Actions .Name }}<span class="action">{{ . }}</span>{{ else }}&nbsp;{{ end }}
+        <div class="player-action">
+            {{ if .Winner }}<span class="action winner-badge">WIN 🏆</span>
+            {{ else }}{{ with .LastAction }}<span class="action">{{ . }}</span>{{ else }}&nbsp;{{ end }}{{ end }}
         </div>
     </div>
     {{ else }}
@@ -34,7 +36,3 @@
     <span>Noch keine Karten</span>
     {{ end }}
 </div>
-{{ if .Score }}
-<h2>Ergebnis</h2>
-<p>{{ .Score }}</p>
-{{ end }}

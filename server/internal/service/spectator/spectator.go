@@ -9,13 +9,15 @@ import (
 	"time"
 )
 
-// playbackDelay is the pause between two replayed messages, so the game state
-// fills up gradually instead of all at once.
-const playbackDelay = 2 * time.Second
-
 const (
 	readHeaderTimeout = 10 * time.Second
 	registerMessage   = "REGISTER_SPECTATOR;abc"
+	// winnerDelay is the pause after the winners are revealed (SCORE message), so
+	// the result stays visible longer before the next round starts.
+	winnerDelay = 7 * time.Second
+	// playbackDelay is the pause between two replayed messages, so the game state
+	// fills up gradually instead of all at once.
+	playbackDelay = 2 * time.Second
 )
 
 // Spectator registers at the game server via UDP, replays the received rounds
@@ -79,13 +81,17 @@ func (s *Spectator) Start() error {
 // actually changed the game state it waits playbackDelay before continuing, so
 // the state is revealed step by step. There is no pause right before a TURN
 // message, so an action or board and the following turn appear together.
+// After the winners are revealed (SCORE) it waits winnerDelay instead.
 func playback(queue <-chan []string, hub *Hub) {
 	for round := range queue {
 		for i, message := range round {
 			changed := hub.Apply(message)
 			nextIsTurn := i+1 < len(round) && strings.HasPrefix(round[i+1], "TURN;")
 
-			if changed && !nextIsTurn {
+			switch {
+			case changed && strings.HasPrefix(message, "SCORE;"):
+				time.Sleep(winnerDelay)
+			case changed && !nextIsTurn:
 				time.Sleep(playbackDelay)
 			}
 		}

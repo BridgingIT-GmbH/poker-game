@@ -74,11 +74,11 @@ func (h *UdpMessageHandler) enqueueRound(round []string) {
 	for {
 		select {
 		case h.queue <- round:
-			slog.Info("Round enqueued", "first", firstMessage(round))
+			slog.Debug("Round enqueued", "first", firstMessage(round))
 
 			return
 		case dropped := <-h.queue:
-			slog.Warn("Queue full, round dropped", "first", firstMessage(dropped))
+			slog.Debug("Queue full, round dropped", "first", firstMessage(dropped))
 		}
 	}
 }

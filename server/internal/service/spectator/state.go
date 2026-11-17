@@ -2,6 +2,8 @@ package spectator
 
 import (
 	"maps"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -14,17 +16,16 @@ type PlayerView struct {
 	Name  string
 	Roles []string
 	// Cards holds the player's hole cards once they are revealed at showdown.
-	Cards []string
+	Cards      []string
+	LastAction string
+	Winner     bool
 }
 
 type GameState struct {
+	Round   string
 	Players []PlayerView
 	Board   []string
-	// Actions maps a player name to their most recent action.
-	Actions map[string]string
-	// ToAct is the name of the player whose turn it is, or "" if nobody is to act.
-	ToAct string
-	Score string
+	ToAct   string
 }
 
 // HiddenBoardCards returns one entry per board card that has not been revealed
@@ -46,6 +47,7 @@ const (
 	roundStartedParts    = 3
 	minBlindPlayers      = 2
 	scoreEntryParts      = 3
+	minScoreEntryParts   = 2
 	holeCardCount        = 2
 )
 
@@ -102,29 +104,36 @@ func (h *Hub) Apply(message string) bool {
 			return false
 		}
 		// A new round resets the whole view.
-		h.state = GameState{Players: buildPlayerViews(splitList(parts[2]))}
+		h.state = GameState{
+			Round:   parts[1],
+			Players: buildPlayerViews(splitList(parts[2])),
+		}
 	case "BOARD":
 		h.state.Board = splitList(parts[1])
 		// Revealing board cards starts a new betting round, so previous
 		// actions are no longer relevant, except folds, which last the
 		// whole round.
-		maps.DeleteFunc(h.state.Actions, func(_, action string) bool {
-			return action != "FOLD"
-		})
-	case "FOLD", "CHECK", "CALL", "RAISE":
-		if h.state.Actions == nil {
-			h.state.Actions = make(map[string]string)
+		for i := range h.state.Players {
+			if h.state.Players[i].LastAction != "FOLD" {
+				h.state.Players[i].LastAction = ""
+			}
 		}
-
-		h.state.Actions[parts[1]] = parts[0]
+	case "FOLD", "CHECK", "CALL", "RAISE":
+		if player := h.findPlayer(parts[1]); player != nil {
+			player.LastAction = parts[0]
+		}
 		// The player has acted; the server announces the next one via TURN.
 		h.state.ToAct = ""
 	case "TURN":
 		h.state.ToAct = parts[1]
 	case "SCORE":
-		h.state.Score = strings.Join(parts[1:], " ")
 		h.state.ToAct = ""
-		h.revealHoleCards(parts[1:])
+		// At the end of the round only the winners are labelled.
+		for i := range h.state.Players {
+			h.state.Players[i].LastAction = ""
+		}
+
+		h.applyScore(parts[1:])
 	default:
 		h.mu.Unlock()
 
@@ -152,45 +161,73 @@ func (h *Hub) broadcast(snapshot GameState) {
 	}
 }
 
-// revealHoleCards stores the hole cards from SCORE entries of the form
-// "player:score:card1,card2". Entries without cards (e.g. when everybody else
-// folded) leave the player's cards hidden.
-func (h *Hub) revealHoleCards(entries []string) {
+// applyScore processes SCORE entries of the form "player:score:card1,card2"
+// (showdown) or "player:score" (everybody else folded). All players with the
+// highest score are marked as winners; revealed hole cards are stored.
+func (h *Hub) applyScore(entries []string) {
+	scores := make(map[*PlayerView]int64, len(entries))
+
 	for _, entry := range entries {
 		fields := strings.Split(entry, ":")
+		if len(fields) < minScoreEntryParts {
+			continue
+		}
+
+		player := h.findPlayer(fields[0])
+		if player == nil {
+			continue
+		}
+
+		if score, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+			scores[player] = score
+		}
+
 		if len(fields) < scoreEntryParts {
 			continue
 		}
 
-		cards := splitList(fields[2])
-		if len(cards) != holeCardCount {
-			continue
-		}
-
-		for i := range h.state.Players {
-			if h.state.Players[i].Name == fields[0] {
-				h.state.Players[i].Cards = cards
-			}
+		if cards := splitList(fields[2]); len(cards) == holeCardCount {
+			player.Cards = cards
 		}
 	}
+
+	if len(scores) == 0 {
+		return
+	}
+
+	best := slices.Max(slices.Collect(maps.Values(scores)))
+	for player, score := range scores {
+		player.Winner = score == best
+	}
+}
+
+func (h *Hub) findPlayer(name string) *PlayerView {
+	for i := range h.state.Players {
+		if h.state.Players[i].Name == name {
+			return &h.state.Players[i]
+		}
+	}
+
+	return nil
 }
 
 func (h *Hub) snapshotLocked() GameState {
 	players := make([]PlayerView, len(h.state.Players))
 	for i, p := range h.state.Players {
 		players[i] = PlayerView{
-			Name:  p.Name,
-			Roles: append([]string(nil), p.Roles...),
-			Cards: append([]string(nil), p.Cards...),
+			Name:       p.Name,
+			Roles:      append([]string(nil), p.Roles...),
+			Cards:      append([]string(nil), p.Cards...),
+			LastAction: p.LastAction,
+			Winner:     p.Winner,
 		}
 	}
 
 	return GameState{
+		Round:   h.state.Round,
 		Players: players,
 		Board:   append([]string(nil), h.state.Board...),
-		Actions: maps.Clone(h.state.Actions),
 		ToAct:   h.state.ToAct,
-		Score:   h.state.Score,
 	}
 }
 

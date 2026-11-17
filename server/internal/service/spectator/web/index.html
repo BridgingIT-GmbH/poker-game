@@ -14,14 +14,18 @@
             padding: 10px; border: 2px solid #475569; border-radius: 8px; background: #f8fafc;
         }
         .player.to-act { border-color: #2563eb; box-shadow: 0 0 8px #2563eb; }
-        .roles { color: #475569; }
+        .player.winner { border-color: #d4a017; background: #fffbea; box-shadow: 0 0 10px #f5c518; }
+        .player-name { display: flex; align-items: center; gap: 4px; height: 20px; }
+        .roles { font-weight: normal; }
         .player-cards { display: flex; }
         .player-cards playing-card { margin: 2px; }
         .player-cards playing-card img { height: 90px; }
+        .player-action { margin-top: 2px; }
         .action {
-            padding: 1px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold;
-            background: #64748b; color: #fff;
+            padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-weight: bold;
+            background: #2c47b8; color: #fff;
         }
+        .action.winner-badge { background: #d4a017; }
         playing-card { display: inline-block; margin: 4px; }
         playing-card img { height: 150px; width: auto; display: block; }
     </style>

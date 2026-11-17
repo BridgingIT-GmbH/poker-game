@@ -23,4 +23,4 @@
 * server->clients: ```BOARD;cards```
 
 ## Round End
-* server->clients: ```SCORE;player:cards:score```
+* server->clients: ```SCORE;player:score:cards```
