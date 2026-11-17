@@ -1,16 +1,27 @@
-<h2>Spieler</h2>
-<ul class="players">
+<h2>Players</h2>
+<div class="players">
     {{ range .Players }}
-    <li>
-        <span class="turn">{{ if and $.ToAct (eq .Name $.ToAct) }}➜{{ end }}</span>
-        <span>{{ with .Roles }}({{ range $i, $r := . }}{{ if $i }}, {{ end }}{{ $r }}{{ end }}){{ end }}</span>
-        <b>{{ .Name }}</b>
-        <span>{{ with index $.Actions .Name }}<span class="action">{{ . }}</span>{{ end }}</span>
-    </li>
+    <div class="player{{ if and $.ToAct (eq .Name $.ToAct) }} to-act{{ end }}">
+        <div>
+            <b>{{ .Name }}</b>
+            {{ with .Roles }}<span class="roles">({{ range $i, $r := . }}{{ if $i }}, {{ end }}{{ $r }}{{ end }})</span>{{ end }}
+        </div>
+        <div class="player-cards">
+            {{ range .Cards }}
+            <playing-card cid="{{ . }}"></playing-card>
+            {{ else }}
+            <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+            <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+            {{ end }}
+        </div>
+        <div>
+            {{ with index $.Actions .Name }}<span class="action">{{ . }}</span>{{ else }}&nbsp;{{ end }}
+        </div>
+    </div>
     {{ else }}
-    <li>Noch keine Spieler</li>
+    <p>Noch keine Spieler</p>
     {{ end }}
-</ul>
+</div>
 <h2>Board</h2>
 <div>
     {{ range .Board }}

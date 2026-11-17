@@ -13,6 +13,8 @@ import (
 type PlayerView struct {
 	Name  string
 	Roles []string
+	// Cards holds the player's hole cards once they are revealed at showdown.
+	Cards []string
 }
 
 type GameState struct {
@@ -43,6 +45,8 @@ const (
 	minMessageParts      = 2
 	roundStartedParts    = 3
 	minBlindPlayers      = 2
+	scoreEntryParts      = 3
+	holeCardCount        = 2
 )
 
 type Hub struct {
@@ -120,6 +124,7 @@ func (h *Hub) Apply(message string) bool {
 	case "SCORE":
 		h.state.Score = strings.Join(parts[1:], " ")
 		h.state.ToAct = ""
+		h.revealHoleCards(parts[1:])
 	default:
 		h.mu.Unlock()
 
@@ -147,9 +152,41 @@ func (h *Hub) broadcast(snapshot GameState) {
 	}
 }
 
+// revealHoleCards stores the hole cards from SCORE entries of the form
+// "player:score:card1,card2". Entries without cards (e.g. when everybody else
+// folded) leave the player's cards hidden.
+func (h *Hub) revealHoleCards(entries []string) {
+	for _, entry := range entries {
+		fields := strings.Split(entry, ":")
+		if len(fields) < scoreEntryParts {
+			continue
+		}
+
+		cards := splitList(fields[2])
+		if len(cards) != holeCardCount {
+			continue
+		}
+
+		for i := range h.state.Players {
+			if h.state.Players[i].Name == fields[0] {
+				h.state.Players[i].Cards = cards
+			}
+		}
+	}
+}
+
 func (h *Hub) snapshotLocked() GameState {
+	players := make([]PlayerView, len(h.state.Players))
+	for i, p := range h.state.Players {
+		players[i] = PlayerView{
+			Name:  p.Name,
+			Roles: append([]string(nil), p.Roles...),
+			Cards: append([]string(nil), p.Cards...),
+		}
+	}
+
 	return GameState{
-		Players: append([]PlayerView(nil), h.state.Players...),
+		Players: players,
 		Board:   append([]string(nil), h.state.Board...),
 		Actions: maps.Clone(h.state.Actions),
 		ToAct:   h.state.ToAct,
