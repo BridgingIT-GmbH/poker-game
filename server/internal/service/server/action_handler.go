@@ -49,6 +49,9 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 
 	c.sendToSpectators(msg)
 
+	potMsg := fmt.Sprintf("%s;%d\n", protocol.CmdPot, round.Table.Pot)
+	c.sendToSpectators(potMsg)
+
 	c.advanceTurn(round)
 }
 

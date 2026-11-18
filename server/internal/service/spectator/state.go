@@ -26,6 +26,7 @@ type GameState struct {
 	Players []PlayerView
 	Board   []string
 	ToAct   string
+	Pot     int64
 }
 
 // HiddenBoardCards returns one entry per board card that has not been revealed
@@ -126,6 +127,15 @@ func (h *Hub) Apply(message string) bool {
 		h.state.ToAct = ""
 	case "TURN":
 		h.state.ToAct = parts[1]
+	case "POT":
+		pot, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			h.mu.Unlock()
+
+			return false
+		}
+
+		h.state.Pot = pot
 	case "SCORE":
 		h.state.ToAct = ""
 		// At the end of the round only the winners are labelled.
@@ -228,6 +238,7 @@ func (h *Hub) snapshotLocked() GameState {
 		Players: players,
 		Board:   append([]string(nil), h.state.Board...),
 		ToAct:   h.state.ToAct,
+		Pot:     h.state.Pot,
 	}
 }
 

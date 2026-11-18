@@ -1,4 +1,4 @@
-<h1>{{ with .Round }}Poker Round {{ . }}{{ else }}Poker{{ end }}</h1>
+<h1>{{ with .Round }}Poker Round {{ . }} – Pot: {{ $.Pot }}{{ else }}Poker{{ end }}</h1>
 <h2>Players</h2>
 <div class="players">
     {{ range .Players }}

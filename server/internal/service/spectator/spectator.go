@@ -80,18 +80,20 @@ func (s *Spectator) Start() error {
 // playback replays buffered rounds message by message. After a message that
 // actually changed the game state it waits playbackDelay before continuing, so
 // the state is revealed step by step. There is no pause right before a TURN
-// message, so an action or board and the following turn appear together.
+// or POT message, so an action, the updated pot and the following turn appear
+// together.
 // After the winners are revealed (SCORE) it waits winnerDelay instead.
 func playback(queue <-chan []string, hub *Hub) {
 	for round := range queue {
 		for i, message := range round {
 			changed := hub.Apply(message)
-			nextIsTurn := i+1 < len(round) && strings.HasPrefix(round[i+1], "TURN;")
+			nextIsInstant := i+1 < len(round) &&
+				(strings.HasPrefix(round[i+1], "TURN;") || strings.HasPrefix(round[i+1], "POT;"))
 
 			switch {
 			case changed && strings.HasPrefix(message, "SCORE;"):
 				time.Sleep(winnerDelay)
-			case changed && !nextIsTurn:
+			case changed && !nextIsInstant:
 				time.Sleep(playbackDelay)
 			}
 		}

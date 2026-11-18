@@ -41,6 +41,9 @@ func (c *serverCore) dealCards(names []string) {
 		round.JoinedPlayers[name] = table.Players[i]
 	}
 
+	potMsg := fmt.Sprintf("%s;%d\n", protocol.CmdPot, table.Pot)
+	c.sendToSpectators(potMsg)
+
 	c.promptCurrentToAct(round)
 }
 
