@@ -1,0 +1,19 @@
+<h2>Leaderboard</h2>
+{{ if . }}
+<table>
+    <thead>
+        <tr><th class="rank">Rank</th><th>Player</th><th class="points">Points</th></tr>
+    </thead>
+    <tbody>
+        {{ range . }}
+        <tr{{ if eq .Rank 1 }} class="first"{{ end }}>
+            <td class="rank">{{ .Rank }}.</td>
+            <td>{{ .Name }}</td>
+            <td class="points">{{ .Points }}</td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>
+{{ else }}
+<p>No points yet</p>
+{{ end }}

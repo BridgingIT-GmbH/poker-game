@@ -7,25 +7,59 @@
     <script src="https://unpkg.com/htmx-ext-sse@2.2.1/sse.js"></script>
     <script src="https://cardmeister.github.io/elements.cardmeister.full.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .players { list-style: none; padding: 0; width: max-content; }
-        .players li { display: grid; grid-template-columns: 1.5em 4em 8em auto; gap: 4px; padding: 4px 0; }
-        .turn { color: #000; font-weight: bold; }
-        .action {
-            padding: 1px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold;
-            background: #64748b; color: #fff;
+        body { font-family: sans-serif; padding: 10px; }
+        .players { display: flex; flex-wrap: wrap; gap: 12px; }
+        .player {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            padding: 10px; border: 2px solid #475569; border-radius: 8px; background: #f8fafc;
         }
+        .player.to-act { border-color: #2563eb; box-shadow: 0 0 8px #2563eb; }
+        .player.winner { border-color: #d4a017; background: #fffbea; box-shadow: 0 0 10px #f5c518; }
+        .player-name { display: flex; align-items: center; gap: 4px; height: 20px; }
+        .roles { font-weight: normal; }
+        .player-cards { display: flex; }
+        .player-cards playing-card { margin: 2px; }
+        .player-cards playing-card img { height: 90px; }
+        .player-action {
+            display: flex; align-items: center; gap: 4px;
+            height: 22px; margin-top: 2px;
+        }
+        .action {
+            display: inline-flex; align-items: center; box-sizing: border-box;
+            height: 22px; padding: 0 6px; border-radius: 4px;
+            font-size: 0.9em; font-weight: bold; line-height: 1;
+            background: #2c47b8; color: #fff;
+        }
+        .action.winner-badge { background: #d4a017; }
+        .action.score { background: #64748b; }
         playing-card { display: inline-block; margin: 4px; }
         playing-card img { height: 150px; width: auto; display: block; }
+        .board {
+            display: inline-flex; align-items: center; padding: 10px;
+            border: 2px solid #475569; border-radius: 8px; background: #f8fafc;
+        }
+        .layout { display: flex; align-items: flex-start; gap: 24px; }
+        .main { flex: 1; min-width: 0; }
+        .leaderboard {
+            width: 280px; flex-shrink: 0; padding: 10px;
+            border: 2px solid #475569; border-radius: 8px; background: #f8fafc;
+        }
+        .leaderboard table { width: 100%; border-collapse: collapse; }
+        .leaderboard th, .leaderboard td { padding: 4px 6px; text-align: left; }
+        .leaderboard th { border-bottom: 2px solid #475569; }
+        .leaderboard .rank { width: 1%; white-space: nowrap; }
+        .leaderboard .rank, .leaderboard .points { text-align: right; }
+        .leaderboard tr.first td { font-weight: bold; color: #b8860b; }
     </style>
 </head>
 <body>
-    <h1>Poker Game</h1>
-
-    <div hx-ext="sse" sse-connect="/events">
-        <div id="game-state" sse-swap="game-state">
-            <p>Warte auf den Gamestate...</p>
+    <div hx-ext="sse" sse-connect="/events" class="layout">
+        <div id="game-state" class="main" sse-swap="game-state">
+            <p>Waiting for game state...</p>
         </div>
+        <aside id="leaderboard" class="leaderboard" sse-swap="leaderboard">
+            <p>Waiting for leaderboard...</p>
+        </aside>
     </div>
 </body>
 </html>

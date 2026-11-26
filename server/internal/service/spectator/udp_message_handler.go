@@ -9,12 +9,14 @@ import (
 )
 
 // UdpMessageHandler reads UDP packets from a connection and buffers each one in
-// a queue for later, delayed playback.
+// a queue for later, delayed playback. SCORE messages are additionally applied
+// to the leaderboard right away.
 type UdpMessageHandler struct {
 	conn *net.UDPConn
 	// queue is bidirectional because a full queue drops the oldest round.
-	queue     chan []string
-	roundData []string
+	queue       chan []string
+	leaderboard *Leaderboard
+	roundData   []string
 }
 
 const (
@@ -22,11 +24,12 @@ const (
 	commandSplitMax = 2
 )
 
-func NewUdpMessageHandler(conn *net.UDPConn, queue chan []string) *UdpMessageHandler {
+func NewUdpMessageHandler(conn *net.UDPConn, queue chan []string, leaderboard *Leaderboard) *UdpMessageHandler {
 	return &UdpMessageHandler{
-		conn:      conn,
-		queue:     queue,
-		roundData: nil,
+		conn:        conn,
+		queue:       queue,
+		leaderboard: leaderboard,
+		roundData:   nil,
 	}
 }
 
@@ -47,6 +50,12 @@ func (h *UdpMessageHandler) ListenForMessages() {
 
 		parts := strings.SplitN(message, ";", commandSplitMax)
 		cmd := parts[0]
+
+		// The leaderboard is updated immediately, independent of the delayed
+		// (and possibly dropping) round playback.
+		if cmd == string(protocol.CmdScore) {
+			h.leaderboard.ApplyScore(message)
+		}
 
 		switch cmd {
 		case string(protocol.CmdRoundStarted):
@@ -74,11 +83,11 @@ func (h *UdpMessageHandler) enqueueRound(round []string) {
 	for {
 		select {
 		case h.queue <- round:
-			slog.Info("Round enqueued", "first", firstMessage(round))
+			slog.Debug("Round enqueued", "first", firstMessage(round))
 
 			return
 		case dropped := <-h.queue:
-			slog.Warn("Queue full, round dropped", "first", firstMessage(dropped))
+			slog.Debug("Queue full, round dropped", "first", firstMessage(dropped))
 		}
 	}
 }

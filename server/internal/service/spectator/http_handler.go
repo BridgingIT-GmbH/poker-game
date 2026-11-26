@@ -15,8 +15,11 @@ import (
 var webFS embed.FS
 
 const (
-	indexTemplate     = "index.html"
-	gameStateTemplate = "game_state.html"
+	indexTemplate       = "index.html"
+	gameStateTemplate   = "game_state.html"
+	leaderboardTemplate = "leaderboard.html"
+	gameStateEvent      = "game-state"
+	leaderboardEvent    = "leaderboard"
 )
 
 const keepAliveInterval = 15 * time.Second
@@ -38,7 +41,7 @@ func makeIndexHandler(templates *template.Template) http.HandlerFunc {
 	}
 }
 
-func makeSSEHandler(hub *Hub, templates *template.Template) http.HandlerFunc {
+func makeSSEHandler(hub *Hub, leaderboard *Leaderboard, templates *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Set the mandatory SSE headers
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -60,54 +63,83 @@ func makeSSEHandler(hub *Hub, templates *template.Template) http.HandlerFunc {
 		flusher.Flush()
 		slog.Info("SSE client connected", "remote", r.RemoteAddr)
 
-		updates := hub.Subscribe()
-		defer hub.Unsubscribe(updates)
+		streamEvents(w, r, flusher, templates, hub, leaderboard)
+	}
+}
 
-		ticker := time.NewTicker(keepAliveInterval)
-		defer ticker.Stop()
+// streamEvents pushes game state and leaderboard updates to a single SSE client
+// until it disconnects or writing fails.
+func streamEvents(
+	w http.ResponseWriter,
+	r *http.Request,
+	flusher http.Flusher,
+	templates *template.Template,
+	hub *Hub,
+	leaderboard *Leaderboard,
+) {
+	updates := hub.Subscribe()
+	defer hub.Unsubscribe(updates)
 
-		for {
-			select {
-			case state, ok := <-updates:
-				if !ok {
-					return
-				}
+	rankings := leaderboard.Subscribe()
+	defer leaderboard.Unsubscribe(rankings)
 
-				if err := writeGameState(w, flusher, templates, state); err != nil {
-					slog.Error("Rendering game state failed", "error", err)
+	ticker := time.NewTicker(keepAliveInterval)
+	defer ticker.Stop()
 
-					return
-				}
+	for {
+		select {
+		case state, ok := <-updates:
+			if !ok {
+				return
+			}
 
-			case <-ticker.C:
-				if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
-					return
-				}
-
-				flusher.Flush()
-
-			case <-r.Context().Done():
-				slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
+			if err := writeEvent(w, flusher, templates, gameStateEvent, gameStateTemplate, state); err != nil {
+				slog.Error("Rendering game state failed", "error", err)
 
 				return
 			}
+
+		case ranking, ok := <-rankings:
+			if !ok {
+				return
+			}
+
+			if err := writeEvent(w, flusher, templates, leaderboardEvent, leaderboardTemplate, ranking); err != nil {
+				slog.Error("Rendering leaderboard failed", "error", err)
+
+				return
+			}
+
+		case <-ticker.C:
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+
+			flusher.Flush()
+
+		case <-r.Context().Done():
+			slog.Info("SSE client disconnected", "remote", r.RemoteAddr)
+
+			return
 		}
 	}
 }
 
-func writeGameState(
+func writeEvent(
 	w http.ResponseWriter,
 	flusher http.Flusher,
 	templates *template.Template,
-	state GameState,
+	eventName string,
+	templateName string,
+	data any,
 ) error {
 	var body bytes.Buffer
-	if err := templates.ExecuteTemplate(&body, gameStateTemplate, state); err != nil {
-		return fmt.Errorf("executing game state template: %w", err)
+	if err := templates.ExecuteTemplate(&body, templateName, data); err != nil {
+		return fmt.Errorf("executing template %s: %w", templateName, err)
 	}
 
 	var event strings.Builder
-	event.WriteString("event: game-state\n")
+	event.WriteString("event: " + eventName + "\n")
 
 	for line := range strings.SplitSeq(body.String(), "\n") {
 		event.WriteString("data: " + line + "\n")
@@ -116,7 +148,7 @@ func writeGameState(
 	event.WriteString("\n")
 
 	if _, err := w.Write([]byte(event.String())); err != nil {
-		return fmt.Errorf("writing game state event: %w", err)
+		return fmt.Errorf("writing %s event: %w", eventName, err)
 	}
 
 	flusher.Flush()

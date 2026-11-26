@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -250,7 +252,7 @@ func TestDealCards_YourTurnContainsToken(t *testing.T) {
 	_ = round
 }
 
-func TestDealCards_SpectatorsReceiveTurn(t *testing.T) {
+func TestDealCards_SpectatorsReceivePotAndTurn(t *testing.T) {
 	t.Parallel()
 
 	const testPeerSpectator = transport.PeerID("peer-spectator")
@@ -260,19 +262,22 @@ func TestDealCards_SpectatorsReceiveTurn(t *testing.T) {
 
 	core.dealCards(testPlayerNames())
 
-	var turnMessages []string
+	var spectatorMessages []string
 
-	for range twoPlayerDealMessages + 1 {
+	for range twoPlayerDealMessages + 2 {
 		pkg := readOutbound(t, outbound)
 		if pkg.Peer == testPeerSpectator {
-			turnMessages = append(turnMessages, string(pkg.Data))
+			spectatorMessages = append(spectatorMessages, string(pkg.Data))
 		}
 	}
 
 	toAct := round.PlayerOrder[round.Table.CurrentToActPos]
-	want := string(protocol.CmdTurn) + ";" + toAct + "\n"
+	want := []string{
+		fmt.Sprintf("%s;%d\n", protocol.CmdPot, defaultSmallBlind+defaultBigBlind),
+		string(protocol.CmdTurn) + ";" + toAct + "\n",
+	}
 
-	if len(turnMessages) != 1 || turnMessages[0] != want {
-		t.Fatalf("expected spectator to receive exactly %q, got %q", want, turnMessages)
+	if !slices.Equal(spectatorMessages, want) {
+		t.Fatalf("expected spectator to receive exactly %q, got %q", want, spectatorMessages)
 	}
 }

@@ -21,6 +21,7 @@
 * client->server: ```command;token``` //command=FOLD,CHECK,RAISE,CALL
 * server->clients: ```command;player```
 * server->clients: ```BOARD;cards```
+* server->spectators: ```POT;amount```
 
 ## Round End
-* server->clients: ```SCORE;player:cards:score```
+* server->clients: ```SCORE;player1:score:cards;player2:score:cards;...```

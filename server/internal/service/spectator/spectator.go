@@ -9,13 +9,15 @@ import (
 	"time"
 )
 
-// playbackDelay is the pause between two replayed messages, so the game state
-// fills up gradually instead of all at once.
-const playbackDelay = 2 * time.Second
-
 const (
 	readHeaderTimeout = 10 * time.Second
 	registerMessage   = "REGISTER_SPECTATOR;abc"
+	// winnerDelay is the pause after the winners are revealed (SCORE message), so
+	// the result stays visible longer before the next round starts.
+	winnerDelay = 15 * time.Second
+	// playbackDelay is the pause between two replayed messages, so the game state
+	// fills up gradually instead of all at once.
+	playbackDelay = 2 * time.Second
 )
 
 // Spectator registers at the game server via UDP, replays the received rounds
@@ -23,17 +25,19 @@ const (
 //
 // The public API is: NewSpectator(*net.UDPConn, string) and Start().
 type Spectator struct {
-	conn     *net.UDPConn
-	httpAddr string
-	hub      *Hub
-	queue    chan []string
+	conn        *net.UDPConn
+	httpAddr    string
+	hub         *Hub
+	leaderboard *Leaderboard
+	queue       chan []string
 }
 
 func NewSpectator(conn *net.UDPConn, httpAddr string) *Spectator {
 	return &Spectator{
-		conn:     conn,
-		httpAddr: httpAddr,
-		hub:      NewHub(),
+		conn:        conn,
+		httpAddr:    httpAddr,
+		hub:         NewHub(),
+		leaderboard: NewLeaderboard(),
 		// Capacity 1 is required by UdpMessageHandler.enqueueRound.
 		queue: make(chan []string, 1),
 	}
@@ -53,12 +57,12 @@ func (s *Spectator) Start() error {
 
 	slog.Info("Sent message", "message", registerMessage)
 
-	go NewUdpMessageHandler(s.conn, s.queue).ListenForMessages()
+	go NewUdpMessageHandler(s.conn, s.queue, s.leaderboard).ListenForMessages()
 	go playback(s.queue, s.hub)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", makeIndexHandler(templates))
-	mux.HandleFunc("/events", makeSSEHandler(s.hub, templates))
+	mux.HandleFunc("/events", makeSSEHandler(s.hub, s.leaderboard, templates))
 
 	server := &http.Server{
 		Addr:              s.httpAddr,
@@ -78,14 +82,20 @@ func (s *Spectator) Start() error {
 // playback replays buffered rounds message by message. After a message that
 // actually changed the game state it waits playbackDelay before continuing, so
 // the state is revealed step by step. There is no pause right before a TURN
-// message, so an action or board and the following turn appear together.
+// or POT message, so an action, the updated pot and the following turn appear
+// together.
+// After the winners are revealed (SCORE) it waits winnerDelay instead.
 func playback(queue <-chan []string, hub *Hub) {
 	for round := range queue {
 		for i, message := range round {
 			changed := hub.Apply(message)
-			nextIsTurn := i+1 < len(round) && strings.HasPrefix(round[i+1], "TURN;")
+			nextIsInstant := i+1 < len(round) &&
+				(strings.HasPrefix(round[i+1], "TURN;") || strings.HasPrefix(round[i+1], "POT;"))
 
-			if changed && !nextIsTurn {
+			switch {
+			case changed && strings.HasPrefix(message, "SCORE;"):
+				time.Sleep(winnerDelay)
+			case changed && !nextIsInstant:
 				time.Sleep(playbackDelay)
 			}
 		}

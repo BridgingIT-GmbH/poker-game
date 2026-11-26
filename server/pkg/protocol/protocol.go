@@ -29,6 +29,7 @@ const (
 	CmdTurn          CommandServer = "TURN"
 	CmdBoard         CommandServer = "BOARD"
 	CmdScore         CommandServer = "SCORE"
+	CmdPot           CommandServer = "POT"
 )
 
 var (

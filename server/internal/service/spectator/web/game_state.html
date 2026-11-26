@@ -1,25 +1,40 @@
-<h2>Spieler</h2>
-<ul class="players">
+<h1>{{ with .Round }}Poker Round {{ . }} – Pot: {{ $.Pot }}{{ else }}Poker{{ end }}</h1>
+<h2>Players</h2>
+<div class="players">
     {{ range .Players }}
-    <li>
-        <span class="turn">{{ if and $.ToAct (eq .Name $.ToAct) }}➜{{ end }}</span>
-        <span>{{ with .Roles }}({{ range $i, $r := . }}{{ if $i }}, {{ end }}{{ $r }}{{ end }}){{ end }}</span>
-        <b>{{ .Name }}</b>
-        <span>{{ with index $.Actions .Name }}<span class="action">{{ . }}</span>{{ end }}</span>
-    </li>
+    <div class="player{{ if and $.ToAct (eq .Name $.ToAct) }} to-act{{ end }}{{ if .Winner }} winner{{ end }}">
+        <div class="player-name">
+            <b>{{ .Name }}</b>
+            {{ with .Roles }}<span class="roles">({{ range $i, $r := . }}{{ if $i }}/{{ end }}{{ $r }}{{ end }})</span>{{ end }}
+        </div>
+        <div class="player-cards">
+            {{ range .Cards }}
+            <playing-card cid="{{ . }}"></playing-card>
+            {{ else }}
+            <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+            <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+            {{ end }}
+        </div>
+        <div class="player-action">
+            {{ if or .Winner .Scored }}
+            {{ if .Winner }}<span class="action winner-badge">WIN 🏆</span>{{ end }}
+            {{ if .Scored }}<span class="action score">{{ printf "%+d" .Score }}</span>{{ end }}
+            {{ else }}{{ with .LastAction }}<span class="action">{{ . }}</span>{{ else }}&nbsp;{{ end }}{{ end }}
+        </div>
+    </div>
     {{ else }}
-    <li>Noch keine Spieler</li>
-    {{ end }}
-</ul>
-<h2>Board</h2>
-<div>
-    {{ range .Board }}
-    <playing-card cid="{{ . }}"></playing-card>
-    {{ else }}
-    <span>Noch keine Karten</span>
+    <p>No players yet</p>
     {{ end }}
 </div>
-{{ if .Score }}
-<h2>Ergebnis</h2>
-<p>{{ .Score }}</p>
-{{ end }}
+<h2>Board</h2>
+<div class="board">
+    {{ range .Board }}
+    <playing-card cid="{{ . }}"></playing-card>
+    {{ end }}
+    {{ range .HiddenBoardCards }}
+    <playing-card cid="0" backcolor="#5c7ff2"></playing-card>
+    {{ end }}
+    {{ if and (not .Board) (not .HiddenBoardCards) }}
+    <span>No cards yet</span>
+    {{ end }}
+</div>
