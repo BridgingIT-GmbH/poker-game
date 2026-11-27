@@ -30,10 +30,42 @@ const (
 	maxRaisesPerStreet = 1 // one raise per player per betting round (pre-flop/flop/turn/river)
 )
 
+// FoldReason is a machine-readable code explaining why a player was
+// automatically folded by the server. It is empty for voluntary folds and
+// for valid non-fold actions.
+type FoldReason string
+
+const (
+	FoldReasonNone              FoldReason = ""
+	FoldReasonTimeout           FoldReason = "TIMEOUT"
+	FoldReasonCannotCheck       FoldReason = "CANNOT_CHECK"
+	FoldReasonCannotAffordCall  FoldReason = "CANNOT_AFFORD_CALL"
+	FoldReasonInsufficientChips FoldReason = "INSUFFICIENT_CHIPS"
+	FoldReasonRaiseLimit        FoldReason = "RAISE_LIMIT"
+	FoldReasonInvalidAction     FoldReason = "INVALID_ACTION"
+)
+
+// foldReasonFromError maps an action validation error to its FoldReason.
+func foldReasonFromError(err error) FoldReason {
+	switch {
+	case errors.Is(err, ErrCannotCheck):
+		return FoldReasonCannotCheck
+	case errors.Is(err, ErrCannotAffordCall):
+		return FoldReasonCannotAffordCall
+	case errors.Is(err, ErrInsufficientChips):
+		return FoldReasonInsufficientChips
+	case errors.Is(err, ErrRaiseLimitReached):
+		return FoldReasonRaiseLimit
+	default:
+		return FoldReasonInvalidAction
+	}
+}
+
 // ApplyPlayerAction dispatches the action command, enforces constraints and
 // returns the action that was actually applied.
-// Illegal or invalid actions result in an automatic fold (ActionFold is returned).
-func ApplyPlayerAction(action Action, round *Round, playerName string) Action {
+// Illegal or invalid actions result in an automatic fold: ActionFold is
+// returned together with a non-empty FoldReason.
+func ApplyPlayerAction(action Action, round *Round, playerName string) (Action, FoldReason) {
 	table := round.Table
 	player := table.Players[table.CurrentToActPos]
 
@@ -43,7 +75,7 @@ func ApplyPlayerAction(action Action, round *Round, playerName string) Action {
 	case ActionFold:
 		ApplyFold(table, player)
 
-		return ActionFold
+		return ActionFold, FoldReasonNone
 	case ActionCheck:
 		err = ApplyCheck(table, player)
 	case ActionCall:
@@ -62,13 +94,15 @@ func ApplyPlayerAction(action Action, round *Round, playerName string) Action {
 	}
 
 	if err != nil {
-		slog.Warn("Invalid action, auto-folding", "player", playerName, "action", action, "error", err)
+		reason := foldReasonFromError(err)
+		slog.Warn("Invalid action, auto-folding", "player", playerName, "action", action,
+			"reason", reason, "error", err)
 		ApplyFold(table, player)
 
-		return ActionFold
+		return ActionFold, reason
 	}
 
-	return action
+	return action, FoldReasonNone
 }
 
 // ── individual action helpers ─────────────────────────────────────────────────

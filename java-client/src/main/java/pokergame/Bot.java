@@ -85,9 +85,17 @@ public final class Bot {
                 break;
 
             // ── server-broadcast player actions ─────────────────────────
-            case Protocol.CMD_FOLD:
-                LOGGER.info("Player folded: player=" + payload);
+            case Protocol.CMD_FOLD: {
+                // format: FOLD;<player>[;<reason>] – reason is only set for server auto-folds
+                // (TIMEOUT, CANNOT_CHECK, CANNOT_AFFORD_CALL, INSUFFICIENT_CHIPS, RAISE_LIMIT, INVALID_ACTION).
+                String reason = parts.length > 2 ? parts[2] : "";
+                if (!reason.isEmpty()) {
+                    LOGGER.info("Player auto-folded: player=" + payload + " reason=" + reason);
+                } else {
+                    LOGGER.info("Player folded: player=" + payload);
+                }
                 break;
+            }
 
             case Protocol.CMD_CALL:
                 LOGGER.info("Player called: player=" + payload);

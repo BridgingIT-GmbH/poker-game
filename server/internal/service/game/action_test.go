@@ -158,10 +158,14 @@ func TestApplyPlayerAction_Fold(t *testing.T) {
 		RaisesThisStreet: make(map[string]int),
 	}
 
-	result := ApplyPlayerAction(ActionFold, round, "Alice")
+	result, reason := ApplyPlayerAction(ActionFold, round, "Alice")
 
 	if result != ActionFold {
 		t.Errorf("expected ActionFold, got %v", result)
+	}
+
+	if reason != FoldReasonNone {
+		t.Errorf("expected no fold reason for voluntary fold, got %q", reason)
 	}
 
 	if !player.HasFolded {
@@ -184,10 +188,14 @@ func TestApplyPlayerAction_InvalidCheckAutoFolds(t *testing.T) {
 		RaisesThisStreet: make(map[string]int),
 	}
 
-	result := ApplyPlayerAction(ActionCheck, round, "Alice")
+	result, reason := ApplyPlayerAction(ActionCheck, round, "Alice")
 
 	if result != ActionFold {
 		t.Errorf("expected auto-fold (ActionFold), got %v", result)
+	}
+
+	if reason != FoldReasonCannotCheck {
+		t.Errorf("expected reason %q, got %q", FoldReasonCannotCheck, reason)
 	}
 }
 
@@ -207,9 +215,69 @@ func TestApplyPlayerAction_RaiseLimitEnforced(t *testing.T) {
 		RaisesThisStreet: map[string]int{"Alice": maxRaisesPerStreet},
 	}
 
-	result := ApplyPlayerAction(ActionRaise, round, "Alice")
+	result, reason := ApplyPlayerAction(ActionRaise, round, "Alice")
 
 	if result != ActionFold {
 		t.Errorf("expected auto-fold when raise limit reached, got %v", result)
+	}
+
+	if reason != FoldReasonRaiseLimit {
+		t.Errorf("expected reason %q, got %q", FoldReasonRaiseLimit, reason)
+	}
+}
+
+func TestApplyPlayerAction_FoldReasons(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		action Action
+		player *model.Player
+		table  *model.Table
+		want   FoldReason
+	}{
+		{
+			name:   "call without enough chips",
+			action: ActionCall,
+			player: &model.Player{IsActive: true, Chips: 5},
+			table:  &model.Table{CurrentBet: 20, BigBlindAmount: 20},
+			want:   FoldReasonCannotAffordCall,
+		},
+		{
+			name:   "raise without enough chips",
+			action: ActionRaise,
+			player: &model.Player{IsActive: true, CurrentBet: 10, Chips: 5},
+			table:  &model.Table{CurrentBet: 20, BigBlindAmount: 20},
+			want:   FoldReasonInsufficientChips,
+		},
+		{
+			name:   "unknown action",
+			action: Action("DANCE"),
+			player: &model.Player{IsActive: true},
+			table:  &model.Table{},
+			want:   FoldReasonInvalidAction,
+		},
+		{
+			name:   "valid check",
+			action: ActionCheck,
+			player: &model.Player{IsActive: true, CurrentBet: 20},
+			table:  &model.Table{CurrentBet: 20},
+			want:   FoldReasonNone,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tt.table.Players = []*model.Player{tt.player}
+			tt.table.NumPlayersActive = 1
+			round := &Round{Table: tt.table, RaisesThisStreet: make(map[string]int)}
+
+			_, reason := ApplyPlayerAction(tt.action, round, "Alice")
+			if reason != tt.want {
+				t.Errorf("expected reason %q, got %q", tt.want, reason)
+			}
+		})
 	}
 }

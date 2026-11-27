@@ -92,9 +92,17 @@ export class Bot {
                 break;
 
             // ── server-broadcast player actions ─────────────────────────────
-            case CmdFold:
-                console.log(`Player folded: player=${payload}`);
+            case CmdFold: {
+                // format: FOLD;<player>[;<reason>] – reason is only set for server auto-folds
+                // (TIMEOUT, CANNOT_CHECK, CANNOT_AFFORD_CALL, INSUFFICIENT_CHIPS, RAISE_LIMIT, INVALID_ACTION).
+                const reason = parts[2] ?? '';
+                if (reason) {
+                    console.log(`Player auto-folded: player=${payload} reason=${reason}`);
+                } else {
+                    console.log(`Player folded: player=${payload}`);
+                }
                 break;
+            }
 
             case CmdCall:
                 console.log(`Player called: player=${payload}`);

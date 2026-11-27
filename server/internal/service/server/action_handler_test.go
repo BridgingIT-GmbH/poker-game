@@ -136,13 +136,13 @@ func TestHandleAction_Fold(t *testing.T) {
 	foldCount := 0
 
 	for _, pkg := range pkgs {
-		if strings.HasPrefix(string(pkg.Data), "FOLD;Alice") {
+		if string(pkg.Data) == "FOLD;Alice\n" {
 			foldCount++
 		}
 	}
 
 	if foldCount != 2 {
-		t.Errorf("expected 2 FOLD;Alice broadcasts, got %d", foldCount)
+		t.Errorf("expected 2 FOLD;Alice broadcasts without reason, got %d", foldCount)
 	}
 
 	hasScore := firstWithPrefix(pkgs, string(protocol.CmdScore))
@@ -192,7 +192,7 @@ func TestHandleAction_Check_InvalidAutoFold(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 3) // 2× FOLD;Alice + 1× SCORE
 
-	hasFold := firstWithPrefix(pkgs, "FOLD;Alice")
+	hasFold := firstWithPrefix(pkgs, "FOLD;Alice;CANNOT_CHECK")
 	if !hasFold {
 		t.Error("expected auto-fold broadcast when check is invalid")
 	}
@@ -239,7 +239,7 @@ func TestHandleAction_Call_InsufficientChips_AutoFold(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 3) // 2× FOLD;Alice + 1× SCORE
 
-	hasFold := firstWithPrefix(pkgs, "FOLD;Alice")
+	hasFold := firstWithPrefix(pkgs, "FOLD;Alice;CANNOT_AFFORD_CALL")
 	if !hasFold {
 		t.Error("expected auto-fold when player cannot afford the call")
 	}
@@ -288,7 +288,7 @@ func TestHandleAction_Raise_LimitEnforced(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 3) // 2× FOLD;Alice + 1× SCORE
 
-	hasFold := firstWithPrefix(pkgs, "FOLD;Alice")
+	hasFold := firstWithPrefix(pkgs, "FOLD;Alice;RAISE_LIMIT")
 	if !hasFold {
 		t.Error("expected auto-fold when raise limit is reached")
 	}
@@ -322,7 +322,7 @@ func TestOnActionTimeout_AutoFold(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 3) // 2× FOLD;Alice + 1× SCORE
 
-	hasFold := firstWithPrefix(pkgs, "FOLD;Alice")
+	hasFold := firstWithPrefix(pkgs, "FOLD;Alice;TIMEOUT")
 	if !hasFold {
 		t.Error("expected FOLD broadcast on action timeout")
 	}

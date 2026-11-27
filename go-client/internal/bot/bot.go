@@ -65,7 +65,13 @@ func (b *Bot) handleMessage(raw string) {
 
 	// ── server-broadcast player actions ──────────────────────────────────────
 	case string(protocol.CmdFold):
-		slog.Info("Player folded", "player", payload)
+		// format: FOLD;<player>[;<reason>] – reason is only set for server auto-folds
+		// (TIMEOUT, CANNOT_CHECK, CANNOT_AFFORD_CALL, INSUFFICIENT_CHIPS, RAISE_LIMIT, INVALID_ACTION).
+		if reason := payloadOr(parts[1:], ""); reason != "" {
+			slog.Info("Player auto-folded", "player", payload, "reason", reason)
+		} else {
+			slog.Info("Player folded", "player", payload)
+		}
 
 	case string(protocol.CmdCall):
 		slog.Info("Player called", "player", payload)

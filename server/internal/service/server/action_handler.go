@@ -40,12 +40,12 @@ func (c *serverCore) handleAction(cmd protocol.CommandPlayer, token string, peer
 		c.actionTimer = nil
 	}
 
-	result := game.ApplyPlayerAction(game.Action(string(cmd)), round, playerName)
+	result, reason := game.ApplyPlayerAction(game.Action(string(cmd)), round, playerName)
 	broadcastCmd := protocol.CommandPlayer(string(result))
 
-	msg := fmt.Sprintf("%s;%s\n", broadcastCmd, playerName)
+	msg := formatActionMessage(broadcastCmd, playerName, reason)
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
-	slog.Info("Client action", "player", playerName, "action", broadcastCmd, "pot", round.Table.Pot)
+	slog.Info("Client action", "player", playerName, "action", broadcastCmd, "reason", reason, "pot", round.Table.Pot)
 
 	c.sendToSpectators(msg)
 
@@ -84,10 +84,20 @@ func (c *serverCore) onActionTimeout(e actionTimeoutFired) {
 	table := c.currentRound.Table
 	game.ApplyFold(table, table.Players[table.CurrentToActPos])
 
-	msg := fmt.Sprintf("%s;%s\n", protocol.CmdFold, e.playerName)
+	msg := formatActionMessage(protocol.CmdFold, e.playerName, game.FoldReasonTimeout)
 	c.broadcastToPlayers(msg, c.currentRound.JoinedPlayers)
 
 	c.sendToSpectators(msg)
 
 	c.advanceTurn(c.currentRound)
+}
+
+// formatActionMessage builds the broadcast for a player action.
+// Format: "<cmd>;<player>\n", or "<cmd>;<player>;<reason>\n" for auto-folds.
+func formatActionMessage(cmd protocol.CommandPlayer, playerName string, reason game.FoldReason) string {
+	if reason == game.FoldReasonNone {
+		return fmt.Sprintf("%s;%s\n", cmd, playerName)
+	}
+
+	return fmt.Sprintf("%s;%s;%s\n", cmd, playerName, reason)
 }
