@@ -39,4 +39,6 @@ field with a machine-readable reason. Voluntary folds have no reason field.
 | `INVALID_ACTION`     | Unknown or unexpected action                             |
 
 ## Round End
-* server->clients: ```SCORE;player1:score:cards;player2:score:cards;...```
+* server->clients: ```SCORE;player1:score:cards:hand_value;player2:score:cards:hand_value;...```
+  * Hand values: "HIGH_CARD", "ONE_PAIR", "TWO_PAIR", "THREE_OF_A_KIND", "STRAIGHT", "FLUSH", "FULL_HOUSE", "FOUR_OF_A_KIND", "STRAIGHT_FLUSH"
+  * The fields "cards" and "hand_value" are optional: it will not be shown for players who have folded. It will also not be shown for the winning player if the game ends before showdown.

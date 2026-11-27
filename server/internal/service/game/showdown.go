@@ -12,6 +12,7 @@ type ShowdownResult struct {
 	Pot     int64
 	// Survivors contains all players still active at showdown, with their hole cards.
 	Survivors []*model.Player
+	BestHands map[*model.Player]string
 }
 
 // SurvivorInfo describes a player who reached the showdown.
@@ -32,6 +33,7 @@ var errNoPlayersLeft = errors.New("no active, non-folded players left")
 // for now the first survivor in seat order is returned as the provisional winner.
 func DetermineWinner(round *Round) (*ShowdownResult, error) {
 	table := round.Table
+	bestHandsMap := make(map[*model.Player]string)
 
 	// Collect survivors (active and not folded).
 	survivors := make([]*model.Player, 0)
@@ -53,18 +55,43 @@ func DetermineWinner(round *Round) (*ShowdownResult, error) {
 			Winners:   []*model.Player{survivors[0]},
 			Pot:       table.Pot,
 			Survivors: survivors,
+			BestHands: bestHandsMap,
 		}, nil
 	}
 
 	// Multiple survivors → perform full showdown evaluation.
-	winners, _, err := EvaluateShowdown(table)
+	winners, bestHands, err := EvaluateShowdown(table)
 	if err != nil {
 		return nil, err
+	}
+
+	for player, handValue := range bestHands {
+		switch handValue.Value.Category {
+		case HighCard:
+			bestHandsMap[player] = "HIGH_CARD"
+		case OnePair:
+			bestHandsMap[player] = "ONE_PAIR"
+		case TwoPair:
+			bestHandsMap[player] = "TWO_PAIR"
+		case ThreeOfAKind:
+			bestHandsMap[player] = "THREE_OF_A_KIND"
+		case Straight:
+			bestHandsMap[player] = "STRAIGHT"
+		case Flush:
+			bestHandsMap[player] = "FLUSH"
+		case FullHouse:
+			bestHandsMap[player] = "FULL_HOUSE"
+		case FourOfAKind:
+			bestHandsMap[player] = "FOUR_OF_A_KIND"
+		case StraightFlush:
+			bestHandsMap[player] = "STRAIGHT_FLUSH"
+		}
 	}
 
 	return &ShowdownResult{
 		Winners:   winners,
 		Pot:       table.Pot,
 		Survivors: survivors,
+		BestHands: bestHandsMap,
 	}, nil
 }

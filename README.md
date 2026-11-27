@@ -32,10 +32,8 @@ Nachrichtentypen sind in [`MESSAGES.md`](MESSAGES.md) beschrieben.
 - Pro Spieler ist **nur 1 Raise pro Betting-Runde (Street)** erlaubt. Ein
   Raise erhöht den aktuellen Einsatz immer um genau **einen Big Blind**
   (keine freie Raise-Höhe).
-- **All-in wird nicht unterstützt**: Ein Call/Raise ist nur erlaubt, wenn er
-  vollständig mit dem Guthaben gedeckt ist. Reicht das Guthaben exakt (Chips
-  danach = 0), ist die Aktion gültig. Reicht es nicht aus, wird der Bot
-  automatisch gefoldet.
+  - Da ein Raise nur um den Big Blind erhöht werden kann, ist ein ALl-In nicht möglich.
 - Ungültige oder zum falschen Zeitpunkt gesendete Aktionen (z. B. `CHECK`
   trotz offenem Einsatz, oder ein zweiter `RAISE` in derselben Street)
   führen ebenfalls zum automatischen Fold.
+- Am Ende einer Runde werden die gewonnene und verlorene Chips zusammengezählt und als Score zurückgegeben. Verluste sind negativ und Gewinne führen zu positiven Scores.

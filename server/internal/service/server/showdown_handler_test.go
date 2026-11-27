@@ -67,7 +67,7 @@ func TestHandleShowdown_BroadcastsScore(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 2) // SCORE to both players
 
-	expected := fmt.Sprintf("%s;Alice:290:Ah,Kd;Bob:-20:3c,2s\n", protocol.CmdScore)
+	expected := fmt.Sprintf("%s;Alice:290:Ah,Kd:ONE_PAIR;Bob:-20:3c,2s:ONE_PAIR\n", protocol.CmdScore)
 	for _, pkg := range pkgs {
 		if string(pkg.Data) != expected {
 			t.Errorf("expected %q, got %q", expected, string(pkg.Data))
@@ -100,7 +100,7 @@ func TestHandleShowdown_TiedWinnersSplitPot(t *testing.T) {
 
 	pkgs := drainN(t, outbound, 2)
 
-	expected := fmt.Sprintf("%s;Alice:140.5:Ah,Kd;Bob:130.5:9c,8s\n", protocol.CmdScore)
+	expected := fmt.Sprintf("%s;Alice:140.5:Ah,Kd:STRAIGHT;Bob:130.5:9c,8s:STRAIGHT\n", protocol.CmdScore)
 	for _, pkg := range pkgs {
 		if string(pkg.Data) != expected {
 			t.Errorf("expected %q, got %q", expected, string(pkg.Data))
@@ -165,7 +165,7 @@ func TestBuildScoreMessage_UsesCurrentRoundScore(t *testing.T) {
 		Pot:     firstRound.Table.Pot,
 	}
 
-	firstMessage := core.buildScoreMessage(firstRound, calculatePayouts(firstResult), false)
+	firstMessage := core.buildScoreMessage(firstRound, calculatePayouts(firstResult), nil, false)
 	if expected := fmt.Sprintf("%s;Alice:140.5;Bob:130.5\n", protocol.CmdScore); firstMessage != expected {
 		t.Fatalf("expected first round score %q, got %q", expected, firstMessage)
 	}
@@ -178,7 +178,7 @@ func TestBuildScoreMessage_UsesCurrentRoundScore(t *testing.T) {
 		Winners: []*model.Player{secondRound.JoinedPlayers["Alice"]},
 		Pot:     100,
 	}
-	secondMessage := core.buildScoreMessage(secondRound, calculatePayouts(secondResult), false)
+	secondMessage := core.buildScoreMessage(secondRound, calculatePayouts(secondResult), nil, false)
 
 	if expected := fmt.Sprintf("%s;Alice:0;Bob:-200\n", protocol.CmdScore); secondMessage != expected {
 		t.Errorf("expected second round score %q, got %q", expected, secondMessage)

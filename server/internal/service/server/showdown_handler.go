@@ -15,12 +15,13 @@ import (
 func (c *serverCore) handleShowdown(round *game.Round) {
 	result, err := game.DetermineWinner(round)
 	if err != nil {
-		// TODO error handling
+		slog.Error("Error during showdown", "error", err)
+
 		return
 	}
 
 	payouts := calculatePayouts(result)
-	msg := c.buildScoreMessage(round, payouts, true)
+	msg := c.buildScoreMessage(round, payouts, result.BestHands, true)
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
 	slog.Info("Showdown", "round", round.RoundNumber, "winners", winnerNames(result.Winners), "pot", result.Pot)
 
@@ -34,13 +35,14 @@ func (c *serverCore) handleShowdown(round *game.Round) {
 func (c *serverCore) handleLastPlayerStanding(round *game.Round) {
 	result, err := game.DetermineWinner(round)
 	if err != nil {
-		// TODO error handling
+		slog.Error("Error at the end of the round", "error", err)
+
 		return
 	}
 
 	payouts := calculatePayouts(result)
 
-	msg := c.buildScoreMessage(round, payouts, false)
+	msg := c.buildScoreMessage(round, payouts, result.BestHands, false)
 	c.broadcastToPlayers(msg, round.JoinedPlayers)
 	slog.Info("Last player standing wins", "winners", result.Winners, "pot", result.Pot)
 
@@ -66,7 +68,7 @@ const (
 )
 
 func (c *serverCore) buildScoreMessage(round *game.Round, payouts map[*model.Player]float64,
-	revealActiveCards bool) string {
+	handValues map[*model.Player]string, revealActiveCards bool) string {
 	parts := make([]string, 0, len(round.JoinedPlayers))
 	for _, name := range round.PlayerOrder {
 		player, ok := round.JoinedPlayers[name]
@@ -86,6 +88,11 @@ func (c *serverCore) buildScoreMessage(round *game.Round, payouts map[*model.Pla
 		part := fmt.Sprintf("%s:%s", name, score)
 		if revealActiveCards && player.IsActive && !player.HasFolded {
 			part += fmt.Sprintf(":%s,%s", player.HoleCards[0], player.HoleCards[1])
+		}
+
+		playerHandValue, ok := handValues[player]
+		if ok && playerHandValue != "" {
+			part += fmt.Sprintf(":%s", playerHandValue)
 		}
 
 		parts = append(parts, part)
