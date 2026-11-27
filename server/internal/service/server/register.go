@@ -3,16 +3,45 @@ package server
 import (
 	"log/slog"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/BridgingIT-GmbH/poker-game/server/internal/model"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/protocol"
 	"github.com/BridgingIT-GmbH/poker-game/server/pkg/transport"
 )
 
+// maxNameLength is the maximum number of characters (runes) in a player name.
+const maxNameLength = 12
+
+// forbiddenNameChars break the protocol format:
+//
+//	;  message separator
+//	,  player list in ROUND STARTED
+//	:  SCORE format (name:score:cards)
+const forbiddenNameChars = ";,:"
+
+// validateName returns a rejection reason, or "" if the name is valid.
+func validateName(name string) string {
+	switch {
+	case name == "":
+		return "Name is empty"
+	case utf8.RuneCountInString(name) > maxNameLength:
+		return "Name is too long (max " + strconv.Itoa(maxNameLength) + " characters)"
+	case strings.ContainsAny(name, forbiddenNameChars):
+		return "Name contains forbidden characters (; , :)"
+	case strings.IndexFunc(name, unicode.IsControl) >= 0:
+		return "Name contains control characters"
+	}
+
+	return ""
+}
+
 func (c *serverCore) registerPlayer(name string, peer transport.PeerID) {
-	if len(name) < 1 {
-		slog.Warn("Client rejected because name is empty", "peer", string(peer))
-		c.sendToPeer(string(protocol.CmdRejected+";Name is empty\n"), peer)
+	if reason := validateName(name); reason != "" {
+		slog.Warn("Client rejected", "name", name, "reason", reason, "peer", string(peer))
+		c.sendToPeer(string(protocol.CmdRejected)+";"+reason+"\n", peer)
 
 		return
 	}

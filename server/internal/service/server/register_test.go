@@ -63,6 +63,69 @@ func TestRegisterPlayer(t *testing.T) {
 	}
 }
 
+func TestRegisterPlayer_InvalidName_Rejected(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		playerName string
+		reason     string
+	}{
+		{"too long", "abcdefghijklm", "Name is too long (max 12 characters)"},
+		{"comma", "Al,ice", "Name contains forbidden characters (; , :)"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			outbound := make(chan transport.OutboundPackage, 8)
+			core := newServerCore(outbound)
+			peer := transport.PeerID("peer-1")
+
+			core.registerPlayer(test.playerName, peer)
+
+			pkg := readOutbound(t, outbound)
+			assertOutbound(t, pkg, peer, string(protocol.CmdRejected)+";"+test.reason+"\n")
+
+			if _, exists := core.players[test.playerName]; exists {
+				t.Fatal("player with invalid name should not be registered")
+			}
+		})
+	}
+}
+
+func TestValidateName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid", "Alice", false},
+		{"exactly 12", "abcdefghijkl", false},
+		{"umlauts count as one", "Jürgenjürgen", false},
+		{"empty", "", true},
+		{"too long", "abcdefghijklm", true},
+		{"comma", "Al,ice", true},
+		{"colon", "Al:ice", true},
+		{"semicolon", "Al;ice", true},
+		{"newline", "Al\nice", true},
+		{"tab", "Al\tice", true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := validateName(test.input) != ""; got != test.wantErr {
+				t.Fatalf("validateName(%q) error = %v, want %v", test.input, got, test.wantErr)
+			}
+		})
+	}
+}
+
 // ── reconnect: peer update ────────────────────────────────────────────────────
 
 func TestRegisterPlayer_Reconnect_UpdatesPeer(t *testing.T) {
