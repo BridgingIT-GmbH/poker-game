@@ -61,6 +61,10 @@ func calculatePayouts(result *game.ShowdownResult) map[*model.Player]float64 {
 	return payouts
 }
 
+const (
+	SCORE_OFFSET = 1000.0
+)
+
 func (c *serverCore) buildScoreMessage(round *game.Round, payouts map[*model.Player]float64,
 	revealActiveCards bool) string {
 	parts := make([]string, 0, len(round.JoinedPlayers))
@@ -76,7 +80,8 @@ func (c *serverCore) buildScoreMessage(round *game.Round, payouts map[*model.Pla
 			continue
 		}
 
-		score := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.3f", float64(player.Chips)+payouts[player]), "0"), ".")
+		score := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.3f",
+			float64(player.Chips)+payouts[player]-SCORE_OFFSET), "0"), ".")
 
 		part := fmt.Sprintf("%s:%s", name, score)
 		if revealActiveCards && player.IsActive && !player.HasFolded {
